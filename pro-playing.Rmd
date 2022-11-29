@@ -1,0 +1,29 @@
+---
+title: "Analyzing 2022 NFL 4th Down Success by Team"
+author: "Jack Miller and Alex Jackson"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r}
+library(nflfastR)
+library(tidyverse)
+```
+
+```{r}
+stats_2022 <- load_pbp(2022)
+team_4th <- stats_2022 %>% 
+  filter(down == 4 & (play_type == "run" | play_type == "pass")) %>% 
+  filter(wp > 0.02 & wp < 0.98) %>% 
+  group_by(posteam) %>% 
+  summarise(avg_yds_to_go = mean(ydstogo),
+            avg_field_pos = mean(yardline_100),
+            count = n(),
+            success_rate = sum(fourth_down_converted) / count,
+            avg_gained = sum(yards_gained) / count) %>% 
+  arrange(desc(success_rate))
+team_4th
+```
+
+

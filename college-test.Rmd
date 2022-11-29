@@ -1,0 +1,10 @@
+```{r}
+library(tidyverse)
+library(cfbfastR)
+```
+
+```{r}
+cfbd_draft_picks(2021)
+```
+
+
