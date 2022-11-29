@@ -9,6 +9,8 @@ output:
 ```{r}
 library(nflfastR)
 library(tidyverse)
+library(ggrepel)
+library(nflplotR)
 ```
 
 ```{r}
@@ -24,6 +26,16 @@ team_4th <- stats_2022 %>%
             avg_gained = sum(yards_gained) / count) %>% 
   arrange(desc(success_rate))
 team_4th
+```
+
+```{r}
+ggplot(team_4th, aes(x = success_rate, y = avg_gained)) +
+  geom_nfl_logos(aes(team_abbr = posteam), width = team_4th$count / 300, alpha = 0.75) +
+  geom_hline(yintercept = mean(team_4th$avg_gained), color = "red", linetype = "dashed", alpha=0.5) +
+  geom_vline(xintercept =  mean(team_4th$success_rate), color = "red", linetype = "dashed", alpha=0.5) +
+  labs(title = "4th Down Success vs. Average Yards Gained on 4th Down",
+       subtitle = "2022 NFL Games, WP between 0.02 and 0.98, Logo Size = # Qualifying Plays",
+       y = "Average Yards Gained", x = "4th Down Success Rate", caption = "@nflfastR")
 ```
 
 
