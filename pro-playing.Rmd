@@ -14,28 +14,71 @@ library(nflplotR)
 ```
 
 ```{r}
-stats_2022 <- load_pbp(2022)
-team_4th <- stats_2022 %>% 
-  filter(down == 4 & (play_type == "run" | play_type == "pass")) %>% 
-  filter(wp > 0.02 & wp < 0.98) %>% 
-  group_by(posteam) %>% 
-  summarise(avg_yds_to_go = mean(ydstogo),
-            avg_field_pos = mean(yardline_100),
-            count = n(),
-            success_rate = sum(fourth_down_converted) / count,
-            avg_gained = sum(yards_gained) / count) %>% 
-  arrange(desc(success_rate))
-team_4th
+data_99 <- nflfastR::load_pbp(1999) %>% 
+  mutate(year = 1999)
+data_00 <- nflfastR::load_pbp(2000) %>% 
+  mutate(year = 2000)
+data_01 <- nflfastR::load_pbp(2001) %>% 
+  mutate(year = 2001)
+data_02 <- nflfastR::load_pbp(2002) %>% 
+  mutate(year = 2002)
+data_03 <- nflfastR::load_pbp(2003) %>% 
+  mutate(year = 2003)
+data_04 <- nflfastR::load_pbp(2004) %>% 
+  mutate(year = 2004)
+data_05 <- nflfastR::load_pbp(2005) %>% 
+  mutate(year = 2005)
+data_06 <- nflfastR::load_pbp(2006) %>% 
+  mutate(year = 2006)
+data_07 <- nflfastR::load_pbp(2007) %>% 
+  mutate(year = 2007)
+data_08 <- nflfastR::load_pbp(2008) %>% 
+  mutate(year = 2008)
+data_09 <- nflfastR::load_pbp(2009) %>% 
+  mutate(year = 2009)
+data_10 <- nflfastR::load_pbp(2010) %>% 
+  mutate(year = 2010)
+data_11 <- nflfastR::load_pbp(2011) %>% 
+  mutate(year = 2011)
+data_12 <- nflfastR::load_pbp(2012) %>% 
+  mutate(year = 2012)
+data_13 <- nflfastR::load_pbp(2013) %>% 
+  mutate(year = 2013)
+data_14 <- nflfastR::load_pbp(2014) %>% 
+  mutate(year = 2014)
+data_15 <- nflfastR::load_pbp(2015) %>% 
+  mutate(year = 2015)
+data_16 <- nflfastR::load_pbp(2016) %>% 
+  mutate(year = 2016)
+data_17 <- nflfastR::load_pbp(2017) %>% 
+  mutate(year = 2017)
+data_18 <- nflfastR::load_pbp(2018) %>% 
+  mutate(year = 2018)
+data_19 <- nflfastR::load_pbp(2019) %>% 
+  mutate(year = 2019)
+data_20 <- nflfastR::load_pbp(2020) %>% 
+  mutate(year = 2020)
+data_21 <- nflfastR::load_pbp(2021) %>% 
+  mutate(year = 2021)
+data_22 <- nflfastR::load_pbp(2022) %>% 
+  mutate(year = 2022)
+data <- rbind(data_99, data_00, data_01, data_02, data_03, data_04, data_05, 
+              data_06, data_07, data_08, data_09, data_10, data_11, data_12,
+              data_13, data_14, data_15, data_16, data_17, data_18, data_19,
+              data_20, data_21, data_22)
+data <- data %>% 
+  select(yardline_100, half_seconds_remaining, game_seconds_remaining, qtr, 
+         down, ydstogo, score_differential, no_score_prob, 
+         opp_fg_prob, opp_safety_prob, opp_td_prob, fg_prob, safety_prob, 
+         td_prob, wp, fourth_down_converted, fourth_down_failed,
+         posteam_timeouts_remaining, defteam_timeouts_remaining, ep, epa, year, 
+         week, posteam, posteam_type, play_type, wpa)
+
 ```
+
+
 
 ```{r}
-ggplot(team_4th, aes(x = success_rate, y = avg_gained)) +
-  geom_nfl_logos(aes(team_abbr = posteam), width = team_4th$count / 300, alpha = 0.75) +
-  geom_hline(yintercept = mean(team_4th$avg_gained), color = "red", linetype = "dashed", alpha=0.5) +
-  geom_vline(xintercept =  mean(team_4th$success_rate), color = "red", linetype = "dashed", alpha=0.5) +
-  labs(title = "4th Down Success vs. Average Yards Gained on 4th Down",
-       subtitle = "2022 NFL Games, WP between 0.02 and 0.98, Logo Size = # Qualifying Plays",
-       y = "Average Yards Gained", x = "4th Down Success Rate", caption = "@nflfastR")
-```
 
+```
 
