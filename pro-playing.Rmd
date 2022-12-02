@@ -22,6 +22,7 @@ library(broom)
 library(xgboost)
 library(caTools)
 library(caret)
+library(glmnet)
 ```
 
 ```{r}
@@ -146,21 +147,37 @@ punt_test_y <- punt_data_test$wpa
 punt_xgb_train = xgb.DMatrix(data = punt_train_x, label = punt_train_y)
 punt_xgb_test = xgb.DMatrix(data = punt_test_x, label = punt_test_y)
 punt_watchlist = list(train=punt_xgb_train, test=punt_xgb_test)
-punt_model = xgb.train(data = punt_xgb_train, max.depth = 3, watchlist=punt_watchlist, nrounds = 1000)
+punt_model = xgb.train(data = punt_xgb_train, max.depth = 3, watchlist=punt_watchlist, nrounds = 1000, verbose = 0)
 punt_model_xgboost = xgboost(data = punt_xgb_train, max.depth = 3, nrounds = 995, verbose = 0)
 summary(punt_model_xgboost)
 punt_pred_y = predict(punt_model_xgboost, punt_xgb_test)
 mean((punt_test_y - punt_pred_y)^2)
 RMSE(punt_test_y, punt_pred_y)
-y_punt_test_mean = mean(punt_test_y)
-tss = sum((punt_test_y - y_punt_test_mean)^2)
-rss = sum(resid(punt_model_xgboost)^2)
-x = 1:length(punt_test_y) 
-plot(x, punt_test_y, col = "red", type = "l")
-lines(x, punt_pred_y, col = "blue", type = "l")
 ```
 
-```{r kick xgboost model}
+```{r punt lasso}
+grid <- 10^seq(10, -2, length = 100)
+lasso.mod <- glmnet(punt_train_x, punt_train_y, alpha = 0, lambda = grid)
+plot(lasso.mod)
+cv.out <- cv.glmnet(punt_train_x, punt_train_y, alpha = 0)
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+lasso.pred <- predict(lasso.mod, s = bestlam, newx = punt_test_x)
+mean((lasso.pred - punt_test_y)^2)
+RMSE(punt_test_y, lasso.pred)
+```
+
+```{r punt ridge}
+ridge.mod <- glmnet(punt_train_x, punt_train_y, alpha = 0, lambda = grid, 
+                    thresh = 1e-12)
+ridge.pred <- predict(ridge.mod, s = 4, newx = punt_test_x)
+mean((ridge.pred - punt_test_y)^2)
+RMSE(punt_test_y, ridge.pred)
+```
+
+XG Boost model performs the best for predicting WPA of punts compared to the optimal lasso and ridge regression models.
+
+```{r kick xgboost model, message = FALSE}
 set.seed(12321)
 sample <- sample(c(TRUE, FALSE), nrow(kick_data), replace = TRUE, prob = c(0.7, 0.3))
 kick_data_train <- kick_data[sample, ]
@@ -172,17 +189,34 @@ kick_test_y <- kick_data_test$wpa
 kick_xgb_train = xgb.DMatrix(data = kick_train_x, label = kick_train_y)
 kick_xgb_test = xgb.DMatrix(data = kick_test_x, label = kick_test_y)
 kick_watchlist = list(train=kick_xgb_train, test=kick_xgb_test)
-kick_model = xgb.train(data = kick_xgb_train, max.depth = 3, watchlist=kick_watchlist, nrounds = 1000)
-kick_model_xgboost = xgboost(data = kick_xgb_train, max.depth = 3, nrounds = 518, verbose = 0)
+kick_model = xgb.train(data = kick_xgb_train, max.depth = 3, watchlist=kick_watchlist, nrounds = 400, verbose = 0)
+kick_model_xgboost = xgboost(data = kick_xgb_train, max.depth = 3, nrounds = 370, verbose = 0)
 summary(kick_model_xgboost)
 kick_pred_y = predict(kick_model_xgboost, kick_xgb_test)
 mean((kick_test_y - kick_pred_y)^2)
 RMSE(kick_test_y, kick_pred_y)
-y_kick_test_mean = mean(kick_test_y)
-x = 1:length(kick_test_y) 
-plot(x, kick_test_y, col = "red", type = "l")
-lines(x, kick_pred_y, col = "blue", type = "l")
 ```
+
+```{r kick lasso}
+lasso.mod.kick <- glmnet(kick_train_x, kick_train_y, alpha = 0, lambda = grid)
+plot(lasso.mod.kick)
+cv.out.kick <- cv.glmnet(kick_train_x, kick_train_y, alpha = 0)
+plot(cv.out.kick)
+bestlam <- cv.out.kick$lambda.min
+lasso.pred.kick <- predict(lasso.mod.kick, s = bestlam, newx = kick_test_x)
+mean((lasso.pred.kick - kick_test_y)^2)
+RMSE(kick_test_y, lasso.pred.kick)
+```
+
+```{r kick ridge}
+ridge.mod.kick <- glmnet(kick_train_x, kick_train_y, alpha = 0, lambda = grid, 
+                    thresh = 1e-12)
+ridge.pred.kick <- predict(ridge.mod.kick, s = 4, newx = kick_test_x)
+mean((ridge.pred.kick - kick_test_y)^2)
+RMSE(kick_test_y, ridge.pred.kick)
+```
+
+XG Boost model performs the best for predicting WPA of field goals compared to the optimal lasso and ridge regression models.
 
 ```{r go xgboost model}
 set.seed(12321)
@@ -196,15 +230,32 @@ go_test_y <- go_data_test$wpa
 go_xgb_train = xgb.DMatrix(data = go_train_x, label = go_train_y)
 go_xgb_test = xgb.DMatrix(data = go_test_x, label = go_test_y)
 go_watchlist = list(train=go_xgb_train, test=go_xgb_test)
-go_model = xgb.train(data = go_xgb_train, max.depth = 3, watchlist=go_watchlist, nrounds = 1000)
-go_model_xgboost = xgboost(data = go_xgb_train, max.depth = 3, nrounds = 183, verbose = 0)
+go_model = xgb.train(data = go_xgb_train, max.depth = 3, watchlist=go_watchlist, nrounds = 250, verbose = 0)
+go_model_xgboost = xgboost(data = go_xgb_train, max.depth = 3, nrounds = 204, verbose = 0)
 summary(go_model_xgboost)
 go_pred_y = predict(go_model_xgboost, go_xgb_test)
 mean((go_test_y - go_pred_y)^2)
 RMSE(go_test_y, go_pred_y)
-y_go_test_mean = mean(go_test_y)
-x = 1:length(go_test_y) 
-plot(x, go_test_y, col = "red", type = "l")
-lines(x, go_pred_y, col = "blue", type = "l")
 ```
+
+```{r go lasso}
+lasso.mod.go <- glmnet(go_train_x, go_train_y, alpha = 0, lambda = grid)
+plot(lasso.mod.go)
+cv.out.go <- cv.glmnet(go_train_x, go_train_y, alpha = 0)
+plot(cv.out)
+bestlam <- cv.out.go$lambda.min
+lasso.pred.go <- predict(lasso.mod.go, s = bestlam, newx = go_test_x)
+mean((lasso.pred.go - go_test_y)^2)
+RMSE(go_test_y, lasso.pred)
+```
+
+```{r go ridge}
+ridge.mod.go <- glmnet(go_train_x, go_train_y, alpha = 0, lambda = grid, 
+                    thresh = 1e-12)
+ridge.pred.go <- predict(ridge.mod.go, s = 4, newx = go_test_x)
+mean((ridge.pred.go - go_test_y)^2)
+RMSE(go_test_y, ridge.pred.go)
+```
+
+XG Boost model performs the best for predicting WPA of going for it compared to the optimal lasso and ridge regression models.
 
