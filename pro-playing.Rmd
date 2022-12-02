@@ -25,7 +25,15 @@ library(caret)
 library(glmnet)
 ```
 
-```{r}
+# Introduction
+
+Our project examines NFL 4th down decision making using play-by-play data dating back to 1999. Our goal is to build three models that predict expected win probability added for each of the three decisions coaches have on fourth downs: kick a field goal, punt it, or go for it.
+
+# Exploratory Data Analysis
+
+Our data comes from the `nflfastR` package which contains data on every play dating back to 1999.
+
+```{r load data}
 data_99 <- nflfastR::load_pbp(1999) %>% 
   mutate(year = 1999)
 data_00 <- nflfastR::load_pbp(2000) %>% 
@@ -102,16 +110,16 @@ run_pass <- data %>%
   drop_na(wpa)
 ```
 
-
-
-```{r}
+```{r play type counts}
 data_main %>% 
   group_by(play_type) %>% 
   summarize(count = n()) %>% 
   kable()
 ```
 
-```{r}
+# Modeling
+
+```{r create dataframes for modeling}
 punt_data <- data_main %>% 
   filter(play_type == "punt") %>% 
   select(-c(qtr, down, fourth_down_converted, fourth_down_failed, ep, epa, year,
@@ -129,13 +137,7 @@ go_data <- data_main %>%
   select(wpa, everything())
 ```
 
-```{r}
-lm1_punt <- lm(wpa ~ ., data = punt_data)
-tidy(lm1_punt)
-summary(lm1_punt)
-```
-
-```{r punt xgboost model}
+```{r punt xgboost}
 set.seed(12321)
 sample <- sample(c(TRUE, FALSE), nrow(punt_data), replace = TRUE, prob = c(0.7, 0.3))
 punt_data_train <- punt_data[sample, ]
@@ -149,7 +151,6 @@ punt_xgb_test = xgb.DMatrix(data = punt_test_x, label = punt_test_y)
 punt_watchlist = list(train=punt_xgb_train, test=punt_xgb_test)
 punt_model = xgb.train(data = punt_xgb_train, max.depth = 3, watchlist=punt_watchlist, nrounds = 1000, verbose = 0)
 punt_model_xgboost = xgboost(data = punt_xgb_train, max.depth = 3, nrounds = 995, verbose = 0)
-summary(punt_model_xgboost)
 punt_pred_y = predict(punt_model_xgboost, punt_xgb_test)
 mean((punt_test_y - punt_pred_y)^2)
 RMSE(punt_test_y, punt_pred_y)
@@ -177,7 +178,7 @@ RMSE(punt_test_y, ridge.pred)
 
 XG Boost model performs the best for predicting WPA of punts compared to the optimal lasso and ridge regression models.
 
-```{r kick xgboost model, message = FALSE}
+```{r kick xgboost}
 set.seed(12321)
 sample <- sample(c(TRUE, FALSE), nrow(kick_data), replace = TRUE, prob = c(0.7, 0.3))
 kick_data_train <- kick_data[sample, ]
@@ -191,7 +192,6 @@ kick_xgb_test = xgb.DMatrix(data = kick_test_x, label = kick_test_y)
 kick_watchlist = list(train=kick_xgb_train, test=kick_xgb_test)
 kick_model = xgb.train(data = kick_xgb_train, max.depth = 3, watchlist=kick_watchlist, nrounds = 400, verbose = 0)
 kick_model_xgboost = xgboost(data = kick_xgb_train, max.depth = 3, nrounds = 370, verbose = 0)
-summary(kick_model_xgboost)
 kick_pred_y = predict(kick_model_xgboost, kick_xgb_test)
 mean((kick_test_y - kick_pred_y)^2)
 RMSE(kick_test_y, kick_pred_y)
@@ -232,7 +232,6 @@ go_xgb_test = xgb.DMatrix(data = go_test_x, label = go_test_y)
 go_watchlist = list(train=go_xgb_train, test=go_xgb_test)
 go_model = xgb.train(data = go_xgb_train, max.depth = 3, watchlist=go_watchlist, nrounds = 250, verbose = 0)
 go_model_xgboost = xgboost(data = go_xgb_train, max.depth = 3, nrounds = 204, verbose = 0)
-summary(go_model_xgboost)
 go_pred_y = predict(go_model_xgboost, go_xgb_test)
 mean((go_test_y - go_pred_y)^2)
 RMSE(go_test_y, go_pred_y)
@@ -258,4 +257,6 @@ RMSE(go_test_y, ridge.pred.go)
 ```
 
 XG Boost model performs the best for predicting WPA of going for it compared to the optimal lasso and ridge regression models.
+
+# Discussion and Conclusion
 
