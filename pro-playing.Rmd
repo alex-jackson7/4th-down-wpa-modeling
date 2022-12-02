@@ -97,7 +97,6 @@ data_main <- data %>%
   mutate(play_type = as.factor(ifelse(play_type == "run" | play_type == "pass", "go", play_type))) %>% 
   drop_na(play_type, wpa) %>% 
   filter(play_type %in% c("go", "field_goal", "punt"))
-
 run_pass <- data %>% 
   select(yardline_100, game_seconds_remaining, qtr, 
          down, ydstogo, score_differential, no_score_prob, 
@@ -108,18 +107,6 @@ run_pass <- data %>%
   filter(down == 4,
          play_type %in% c("run", "pass")) %>% 
   drop_na(wpa)
-```
-
-```{r play type counts}
-data_main %>% 
-  group_by(play_type) %>% 
-  summarize(count = n()) %>% 
-  kable()
-```
-
-# Modeling
-
-```{r create dataframes for modeling}
 punt_data <- data_main %>% 
   filter(play_type == "punt") %>% 
   select(-c(qtr, down, fourth_down_converted, fourth_down_failed, ep, epa, year,
@@ -136,6 +123,31 @@ go_data <- data_main %>%
             week, posteam, play_type, posteam_type)) %>% 
   select(wpa, everything())
 ```
+
+```{r play type counts}
+data_main %>% 
+  group_by(play_type) %>% 
+  summarize(count = n()) %>% 
+  kable()
+```
+
+```{r eda by decision}
+ggplot(punt_data, aes(x = wpa)) +
+  geom_density()
+ggplot(kick_data, aes(x = wpa)) +
+  geom_density()
+ggplot(go_data, aes(x = wpa)) +
+  geom_density()
+```
+
+```{r}
+ggplot(go_data, aes(x = wpa, y = yardline_100)) +
+  geom_point()
+ggplot(go_data, aes(x = wpa, y = ydstogo)) +
+  geom_point()
+```
+
+# Modeling
 
 ```{r punt xgboost}
 set.seed(12321)
