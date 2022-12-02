@@ -90,12 +90,13 @@ data <- rbind(data_99, data_00, data_01, data_02, data_03, data_04, data_05,
 
 ```{r}
 data_main <- data %>% 
+  mutate(pos_team_epa = ifelse(posteam == home_team, total_home_epa, total_away_epa)) %>% 
   select(yardline_100, game_seconds_remaining, qtr, 
          down, ydstogo, score_differential, no_score_prob, 
          opp_fg_prob, opp_safety_prob, opp_td_prob, fg_prob, safety_prob, 
          td_prob, wp, fourth_down_converted, fourth_down_failed,
          posteam_timeouts_remaining, defteam_timeouts_remaining, ep, epa, year, 
-         week, posteam, posteam_type, play_type, wpa, total_home_epa, total_away_epa) %>%
+         week, posteam, posteam_type, play_type, wpa, pos_team_epa) %>%
   filter(down == 4) %>% 
   mutate(play_type = as.factor(ifelse(play_type == "run" | play_type == "pass", "go", play_type))) %>% 
   drop_na(play_type, wpa) %>% 
