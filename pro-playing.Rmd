@@ -66,14 +66,26 @@ data <- rbind(data_99, data_00, data_01, data_02, data_03, data_04, data_05,
               data_06, data_07, data_08, data_09, data_10, data_11, data_12,
               data_13, data_14, data_15, data_16, data_17, data_18, data_19,
               data_20, data_21, data_22)
-data <- data %>% 
-  select(yardline_100, half_seconds_remaining, game_seconds_remaining, qtr, 
+data_main <- data %>% 
+  select(yardline_100, game_seconds_remaining, qtr, 
          down, ydstogo, score_differential, no_score_prob, 
          opp_fg_prob, opp_safety_prob, opp_td_prob, fg_prob, safety_prob, 
          td_prob, wp, fourth_down_converted, fourth_down_failed,
          posteam_timeouts_remaining, defteam_timeouts_remaining, ep, epa, year, 
-         week, posteam, posteam_type, play_type, wpa)
+         week, posteam, posteam_type, play_type, wpa, total_home_epa, total_away_epa) %>%
+  filter(down == 4) %>% 
+  mutate(play_type = ifelse(play_type == "run" | play_type == "pass", "go", play_type)) %>% 
+  drop_na(play_type)
 
+run_pass <- data %>% 
+  select(yardline_100, game_seconds_remaining, qtr, 
+         down, ydstogo, score_differential, no_score_prob, 
+         opp_fg_prob, opp_safety_prob, opp_td_prob, fg_prob, safety_prob, 
+         td_prob, wp, fourth_down_converted, fourth_down_failed,
+         posteam_timeouts_remaining, defteam_timeouts_remaining, ep, epa, year, 
+         week, posteam, posteam_type, play_type, wpa, total_home_epa, total_away_epa) %>%
+  filter(down == 4,
+         play_type %in% c("run", "pass"))
 ```
 
 
