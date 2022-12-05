@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE)
 ```
 
-```{r include = FALSE}
+```{r packages, include = FALSE}
 library(nflfastR)
 library(tidyverse)
 library(ggrepel)
@@ -33,7 +33,7 @@ Our project examines NFL 4th down decision making using play-by-play data dating
 
 Our data comes from the `nflfastR` package which contains data on every play dating back to 1999.
 
-```{r load data}
+```{r load data, include = FALSE}
 data_99 <- nflfastR::load_pbp(1999) %>% 
   mutate(year = 1999)
 data_00 <- nflfastR::load_pbp(2000) %>% 
@@ -88,7 +88,7 @@ data <- rbind(data_99, data_00, data_01, data_02, data_03, data_04, data_05,
               data_20, data_21, data_22)
 ```
 
-```{r}
+```{r clean data, include = FALSE}
 data_main <- data %>% 
   mutate(pos_team_epa = ifelse(posteam == home_team, total_home_epa, total_away_epa)) %>% 
   select(yardline_100, game_seconds_remaining, qtr, 
@@ -139,23 +139,26 @@ data_main %>%
   kable()
 ```
 
-```{r eda by decision}
+```{r count by decision}
 ggplot(punt_data, aes(x = wpa)) +
-  geom_density()
+  geom_density() +
+  labs(title = )
 ggplot(kick_data, aes(x = wpa)) +
   geom_density()
 ggplot(go_data, aes(x = wpa)) +
   geom_density()
 ```
 
-```{r}
-ggplot(go_data, aes(x = wpa, y = yardline_100)) +
-  geom_point()
-ggplot(go_data, aes(x = wpa, y = ydstogo)) +
+```{r wpa vs yard}
+ggplot(go_data, aes(x = yardline_100, y = wpa)) +
+  geom_point() 
+ggplot(go_data, aes(x = ydstogo, y = wpa)) +
   geom_point()
 ```
 
 # Modeling
+
+The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. Because these models will not be used for any inference, 
 
 ```{r punt xgboost}
 set.seed(12321)
@@ -169,19 +172,16 @@ punt_test_y <- punt_data_test$wpa
 punt_xgb_train = xgb.DMatrix(data = punt_train_x, label = punt_train_y)
 punt_xgb_test = xgb.DMatrix(data = punt_test_x, label = punt_test_y)
 punt_watchlist = list(train=punt_xgb_train, test=punt_xgb_test)
-punt_model = xgb.train(data = punt_xgb_train, max.depth = 3, watchlist=punt_watchlist, nrounds = 1000, verbose = 0)
-punt_model_xgboost = xgboost(data = punt_xgb_train, max.depth = 3, nrounds = 995, verbose = 0)
+punt_model = xgb.train(data = punt_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=punt_watchlist, nrounds = 1500, verbose = 0, eta = 0.1, subsample = 0.9)
+punt_model_xgboost = xgboost(data = punt_xgb_train, max.depth = 6, nrounds = 1475, colsample_bytree = 1, colsample_bylevel = 1, verbose = 0, eta = 0.1, subsample = 0.9)
 punt_pred_y = predict(punt_model_xgboost, punt_xgb_test)
-mean((punt_test_y - punt_pred_y)^2)
-RMSE(punt_test_y, punt_pred_y)
+print(paste("XG Boost RMSE:", RMSE(punt_test_y, punt_pred_y)))
 
 plot(y=punt_test_y, x=punt_pred_y)
 abline(lm(punt_test_y ~ punt_pred_y), col = "blue")
 punt_res = data.frame(test_y= punt_test_y, pred_y = punt_pred_y, res = (punt_test_y-punt_pred_y), punt_test_x)
 plot(punt_res$yardline_100, punt_res$res)
 abline(0,0, col="blue")
-
-
 ```
 
 ```{r punt lasso}
@@ -192,19 +192,17 @@ cv.out <- cv.glmnet(punt_train_x, punt_train_y, alpha = 0)
 plot(cv.out)
 bestlam <- cv.out$lambda.min
 lasso.pred <- predict(lasso.mod, s = bestlam, newx = punt_test_x)
-mean((lasso.pred - punt_test_y)^2)
-RMSE(punt_test_y, lasso.pred)
+print(paste("Lasso RMSE:", RMSE(punt_test_y, lasso.pred)))
 ```
 
 ```{r punt ridge}
 ridge.mod <- glmnet(punt_train_x, punt_train_y, alpha = 0, lambda = grid, 
                     thresh = 1e-12)
 ridge.pred <- predict(ridge.mod, s = 4, newx = punt_test_x)
-mean((ridge.pred - punt_test_y)^2)
-RMSE(punt_test_y, ridge.pred)
+print(paste("Ridge RMSE:", RMSE(punt_test_y, ridge.pred)))
 ```
 
-XG Boost model performs the best for predicting WPA of punts compared to the optimal lasso and ridge regression models.
+Our optimal punt XG Boost model has a RMSE of 0.0216, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we will continue with this as our punt WPA model.
 
 ```{r kick xgboost}
 set.seed(12321)
@@ -218,11 +216,10 @@ kick_test_y <- kick_data_test$wpa
 kick_xgb_train = xgb.DMatrix(data = kick_train_x, label = kick_train_y)
 kick_xgb_test = xgb.DMatrix(data = kick_test_x, label = kick_test_y)
 kick_watchlist = list(train=kick_xgb_train, test=kick_xgb_test)
-kick_model = xgb.train(data = kick_xgb_train, max.depth = 3, watchlist=kick_watchlist, nrounds = 400, verbose = 0)
-kick_model_xgboost = xgboost(data = kick_xgb_train, max.depth = 3, nrounds = 370, verbose = 0)
+kick_model = xgb.train(data = kick_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=kick_watchlist, nrounds = 1000, verbose = 0, eta = 0.1, subsample = 0.9)
+kick_model_xgboost = xgboost(data = kick_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, nrounds = 1000, verbose = 0, eta = 0.1, subsample = 0.9)
 kick_pred_y = predict(kick_model_xgboost, kick_xgb_test)
-mean((kick_test_y - kick_pred_y)^2)
-RMSE(kick_test_y, kick_pred_y)
+print(paste("XG Boost RMSE:", RMSE(kick_test_y, kick_pred_y)))
 
 plot(y=kick_test_y, x=kick_pred_y)
 abline(lm(kick_test_y ~ kick_pred_y), col = "blue")
@@ -231,26 +228,24 @@ plot(kick_res$yardline_100, kick_res$res)
 abline(0,0, col="blue")
 ```
 
-```{r kick lasso}
+```{r kick lasso, include = FALSE}
 lasso.mod.kick <- glmnet(kick_train_x, kick_train_y, alpha = 0, lambda = grid)
 plot(lasso.mod.kick)
 cv.out.kick <- cv.glmnet(kick_train_x, kick_train_y, alpha = 0)
 plot(cv.out.kick)
 bestlam <- cv.out.kick$lambda.min
 lasso.pred.kick <- predict(lasso.mod.kick, s = bestlam, newx = kick_test_x)
-mean((lasso.pred.kick - kick_test_y)^2)
-RMSE(kick_test_y, lasso.pred.kick)
+print(paste("Lasso RMSE:", RMSE(kick_test_y, lasso.pred.kick)))
 ```
 
 ```{r kick ridge}
 ridge.mod.kick <- glmnet(kick_train_x, kick_train_y, alpha = 0, lambda = grid, 
                     thresh = 1e-12)
 ridge.pred.kick <- predict(ridge.mod.kick, s = 4, newx = kick_test_x)
-mean((ridge.pred.kick - kick_test_y)^2)
-RMSE(kick_test_y, ridge.pred.kick)
+print(paste("Ridge RMSE:", RMSE(kick_test_y, ridge.pred.kick)))
 ```
 
-XG Boost model performs the best for predicting WPA of field goals compared to the optimal lasso and ridge regression models.
+Our optimal kick XG Boost model has a RMSE of 0.3921, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we will continue with this as our kick WPA model.
 
 ```{r go xgboost model}
 set.seed(12321)
@@ -264,11 +259,10 @@ go_test_y <- go_data_test$wpa
 go_xgb_train = xgb.DMatrix(data = go_train_x, label = go_train_y)
 go_xgb_test = xgb.DMatrix(data = go_test_x, label = go_test_y)
 go_watchlist = list(train=go_xgb_train, test=go_xgb_test)
-go_model = xgb.train(data = go_xgb_train, max.depth = 3, watchlist=go_watchlist, nrounds = 250, verbose = 0)
-go_model_xgboost = xgboost(data = go_xgb_train, max.depth = 3, nrounds = 204, verbose = 0)
+go_model = xgb.train(data = go_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=kick_watchlist, nrounds = 1000, verbose = 1, eta = 0.1, subsample = 0.9)
+go_model_xgboost = xgboost(data = go_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, nrounds = 60, verbose = 1, eta = 0.1, subsample = 0.9)
 go_pred_y = predict(go_model_xgboost, go_xgb_test)
-mean((go_test_y - go_pred_y)^2)
-RMSE(go_test_y, go_pred_y)
+print(paste("XG Boost RMSE:", RMSE(go_test_y, go_pred_y)))
 
 plot(y=go_test_y, x=go_pred_y)
 abline(lm(go_test_y ~ go_pred_y), col = "blue")
@@ -277,26 +271,23 @@ plot(go_res$yardline_100, go_res$res)
 abline(0,0, col="blue")
 ```
 
-```{r go lasso}
+```{r go lasso, warning =FALSE}
 lasso.mod.go <- glmnet(go_train_x, go_train_y, alpha = 0, lambda = grid)
 plot(lasso.mod.go)
 cv.out.go <- cv.glmnet(go_train_x, go_train_y, alpha = 0)
 plot(cv.out)
 bestlam <- cv.out.go$lambda.min
 lasso.pred.go <- predict(lasso.mod.go, s = bestlam, newx = go_test_x)
-mean((lasso.pred.go - go_test_y)^2)
-RMSE(go_test_y, lasso.pred)
+print(paste("Lasso RMSE:", RMSE(go_test_y, lasso.pred)))
 ```
 
 ```{r go ridge}
 ridge.mod.go <- glmnet(go_train_x, go_train_y, alpha = 0, lambda = grid, 
                     thresh = 1e-12)
 ridge.pred.go <- predict(ridge.mod.go, s = 4, newx = go_test_x)
-mean((ridge.pred.go - go_test_y)^2)
-RMSE(go_test_y, ridge.pred.go)
+print(paste("Ridge RMSE:", RMSE(go_test_y, ridge.pred.go)))
 ```
 
-XG Boost model performs the best for predicting WPA of going for it compared to the optimal lasso and ridge regression models.
+Our optimal go for it XG Boost model has a RMSE of 0.5492, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we will continue with this as our go for it WPA model.
 
 # Discussion and Conclusion
-
