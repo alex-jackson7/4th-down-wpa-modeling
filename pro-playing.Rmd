@@ -307,11 +307,13 @@ pred_data = cbind(pred_data, play_type = data_main$play_type, punt_preds, kick_p
   mutate(recommendation = case_when((punt_preds > kick_preds) & (punt_preds > go_preds) ~ "punt",
                                     (kick_preds > punt_preds) & (kick_preds > go_preds) ~ "field_goal",
                                     (go_preds > kick_preds) & (go_preds > punt_preds) ~ "go"),
-         correct_call = ifelse(play_type == recommendation, "Yes", "No")) 
+         correct_call = ifelse(play_type == recommendation, "Yes", "No"),
+         yard_line = ifelse(yardline_100 > 50, -(100-yardline_100), yardline_100),
+         game_minutes_remaining = paste0(trunc(game_seconds_remaining/60), ":", game_seconds_remaining%%60)) 
 
 pred_data %>% 
   filter(correct_call == "No") %>% 
-  select(yardline_100, game_seconds_remaining, ydstogo, score_differential, play_type, recommendation)
+  select(yard_line, game_minutes_remaining, ydstogo, score_differential, play_type, recommendation)
 ```
 
 
