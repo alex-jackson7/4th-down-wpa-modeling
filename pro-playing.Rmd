@@ -141,8 +141,7 @@ data_main %>%
 
 ```{r count by decision}
 ggplot(punt_data, aes(x = wpa)) +
-  geom_density() +
-  labs(title = )
+  geom_density() 
 ggplot(kick_data, aes(x = wpa)) +
   geom_density()
 ggplot(go_data, aes(x = wpa)) +
