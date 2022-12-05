@@ -289,4 +289,30 @@ print(paste("Ridge RMSE:", RMSE(go_test_y, ridge.pred.go)))
 
 Our optimal go for it XG Boost model has a RMSE of 0.5492, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we will continue with this as our go for it WPA model.
 
+```{r}
+pred_data <- data_main %>% 
+    select(-c(qtr, down, fourth_down_converted, fourth_down_failed, ep, epa, year,
+            week, posteam, play_type, posteam_type)) %>% 
+  select(wpa, everything())
+
+data_x <- data.matrix(pred_data[, -1])
+data_y <- pred_data$wpa
+xgb_matrix = xgb.DMatrix(data = data_x, label = data_y)
+
+punt_preds = predict(punt_model_xgboost, xgb_matrix)
+kick_preds = predict(kick_model_xgboost, xgb_matrix)
+go_preds = predict(go_model_xgboost, xgb_matrix)
+
+pred_data = cbind(pred_data, play_type = data_main$play_type, punt_preds, kick_preds, go_preds) %>% 
+  mutate(recommendation = case_when((punt_preds > kick_preds) & (punt_preds > go_preds) ~ "punt",
+                                    (kick_preds > punt_preds) & (kick_preds > go_preds) ~ "field_goal",
+                                    (go_preds > kick_preds) & (go_preds > punt_preds) ~ "go"),
+         correct_call = ifelse(play_type == recommendation, "Yes", "No")) 
+
+pred_data %>% 
+  filter(correct_call == "No") %>% 
+  select(yardline_100, game_seconds_remaining, ydstogo, score_differential, play_type, recommendation)
+```
+
+
 # Discussion and Conclusion
