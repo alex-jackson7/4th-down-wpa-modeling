@@ -96,7 +96,7 @@ data_main <- data %>%
          opp_fg_prob, opp_safety_prob, opp_td_prob, fg_prob, safety_prob, 
          td_prob, wp, fourth_down_converted, fourth_down_failed,
          posteam_timeouts_remaining, defteam_timeouts_remaining, ep, epa, year, 
-         week, posteam, posteam_type, play_type, wpa, pos_team_epa) %>%
+         week, posteam, posteam_type, play_type, wpa) %>%
   filter(down == 4) %>% 
   mutate(play_type = as.factor(ifelse(play_type == "run" | play_type == "pass", "go", play_type))) %>% 
   drop_na(play_type, wpa) %>% 
@@ -114,23 +114,24 @@ run_pass <- data %>%
   drop_na(wpa)
 
 punt_data <- data_main %>% 
-  filter(play_type == "punt") %>% 
-  select(-c(qtr, down, fourth_down_converted, fourth_down_failed, ep, epa, year,
+  filter(play_type == "punt" & yardline_100 >= 30) %>% 
+  select(-c(down, fourth_down_converted, fourth_down_failed, ep, epa, year,
             week, posteam, play_type, posteam_type)) %>% 
   select(wpa, everything())
 
 kick_data <- data_main %>% 
-  filter(play_type == "field_goal") %>% 
-  select(-c(qtr, down, fourth_down_converted, fourth_down_failed, ep, epa, year,
+  filter(play_type == "field_goal" & yardline_100 <= 50) %>% 
+  select(-c(down, fourth_down_converted, fourth_down_failed, ep, epa, year,
             week, posteam, play_type, posteam_type)) %>% 
   select(wpa, everything())
 
 go_data <- data_main %>% 
   filter(play_type == "go") %>% 
-  select(-c(qtr, down, fourth_down_converted, fourth_down_failed, ep, epa, year,
+  select(-c(down, fourth_down_failed, ep, epa, year,
             week, posteam, play_type, posteam_type)) %>% 
   select(wpa, everything())
 ```
+
 
 ```{r play type counts}
 data_main %>% 
@@ -141,11 +142,11 @@ data_main %>%
 
 ```{r count by decision}
 ggplot(punt_data, aes(x = wpa)) +
-  geom_density() 
+  geom_histogram() 
 ggplot(kick_data, aes(x = wpa)) +
-  geom_density()
-ggplot(go_data, aes(x = wpa)) +
-  geom_density()
+  geom_histogram()
+ggplot(go_data, aes(x = wpa, color = as.factor(fourth_down_converted))) +
+  geom_histogram()
 ```
 
 ```{r wpa vs yard}
@@ -157,9 +158,9 @@ ggplot(go_data, aes(x = ydstogo, y = wpa)) +
 
 # Modeling
 
-The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. Because these models will not be used for any inference, 
+The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. 
 
-```{r punt xgboost}
+```{r punt xgboost }
 set.seed(12321)
 sample <- sample(c(TRUE, FALSE), nrow(punt_data), replace = TRUE, prob = c(0.7, 0.3))
 punt_data_train <- punt_data[sample, ]
@@ -171,8 +172,8 @@ punt_test_y <- punt_data_test$wpa
 punt_xgb_train = xgb.DMatrix(data = punt_train_x, label = punt_train_y)
 punt_xgb_test = xgb.DMatrix(data = punt_test_x, label = punt_test_y)
 punt_watchlist = list(train=punt_xgb_train, test=punt_xgb_test)
-punt_model = xgb.train(data = punt_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=punt_watchlist, nrounds = 1500, verbose = 0, eta = 0.1, subsample = 0.9)
-punt_model_xgboost = xgboost(data = punt_xgb_train, max.depth = 6, nrounds = 1475, colsample_bytree = 1, colsample_bylevel = 1, verbose = 0, eta = 0.1, subsample = 0.9)
+punt_model = xgb.train(data = punt_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 0.8, watchlist=punt_watchlist, nrounds = 1000, verbose = 1, eta = 0.1, subsample = 0.9, lambda = 3)
+punt_model_xgboost = xgboost(data = punt_xgb_train, max_depth = 6, nrounds = 433, colsample_bytree = 1, colsample_bylevel = 1, verbose = 0, eta = 0.1, subsample = 0.9)
 punt_pred_y = predict(punt_model_xgboost, punt_xgb_test)
 print(paste("XG Boost RMSE:", RMSE(punt_test_y, punt_pred_y)))
 
@@ -182,6 +183,11 @@ punt_res = data.frame(test_y= punt_test_y, pred_y = punt_pred_y, res = (punt_tes
 plot(punt_res$yardline_100, punt_res$res)
 abline(0,0, col="blue")
 ```
+
+```{r}
+
+```
+
 
 ```{r punt lasso}
 grid <- 10^seq(10, -2, length = 100)
@@ -258,8 +264,8 @@ go_test_y <- go_data_test$wpa
 go_xgb_train = xgb.DMatrix(data = go_train_x, label = go_train_y)
 go_xgb_test = xgb.DMatrix(data = go_test_x, label = go_test_y)
 go_watchlist = list(train=go_xgb_train, test=go_xgb_test)
-go_model = xgb.train(data = go_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=kick_watchlist, nrounds = 1000, verbose = 1, eta = 0.1, subsample = 0.9)
-go_model_xgboost = xgboost(data = go_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, nrounds = 60, verbose = 1, eta = 0.1, subsample = 0.9)
+go_model = xgb.train(data = go_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=kick_watchlist, nrounds = 100, verbose = 0, eta = 0.1, subsample = 0.9)
+go_model_xgboost = xgboost(data = go_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, nrounds = 60, verbose = 0, eta = 0.1, subsample = 0.9)
 go_pred_y = predict(go_model_xgboost, go_xgb_test)
 print(paste("XG Boost RMSE:", RMSE(go_test_y, go_pred_y)))
 
@@ -303,7 +309,7 @@ punt_preds = predict(punt_model_xgboost, xgb_matrix)
 kick_preds = predict(kick_model_xgboost, xgb_matrix)
 go_preds = predict(go_model_xgboost, xgb_matrix)
 
-pred_data = cbind(pred_data, play_type = data_main$play_type, punt_preds, kick_preds, go_preds) %>% 
+pred_data = cbind(pred_data, play_type = data_main$play_type, team = data_main$posteam, year = data_main$year, punt_preds, kick_preds, go_preds) %>% 
   mutate(recommendation = case_when((punt_preds > kick_preds) & (punt_preds > go_preds) ~ "punt",
                                     (kick_preds > punt_preds) & (kick_preds > go_preds) ~ "field_goal",
                                     (go_preds > kick_preds) & (go_preds > punt_preds) ~ "go"),
@@ -313,7 +319,11 @@ pred_data = cbind(pred_data, play_type = data_main$play_type, punt_preds, kick_p
 
 pred_data %>% 
   filter(correct_call == "No") %>% 
-  select(yard_line, game_minutes_remaining, ydstogo, score_differential, play_type, recommendation)
+  select(yard_line, game_minutes_remaining, ydstogo, score_differential, play_type, recommendation) %>% 
+  kable(digits = 3)
+
+example <- confusionMatrix(data=predicted_value, reference = expected_value)
+example
 ```
 
 
