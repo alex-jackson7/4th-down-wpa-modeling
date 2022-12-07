@@ -158,9 +158,11 @@ ggplot(go_data, aes(x = ydstogo, y = wpa)) +
 
 # Modeling
 
-The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. 
+The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state.
 
-```{r punt xgboost }
+### Punt Model
+
+```{r punt xgboost}
 set.seed(12321)
 sample <- sample(c(TRUE, FALSE), nrow(punt_data), replace = TRUE, prob = c(0.7, 0.3))
 punt_data_train <- punt_data[sample, ]
@@ -172,8 +174,8 @@ punt_test_y <- punt_data_test$wpa
 punt_xgb_train = xgb.DMatrix(data = punt_train_x, label = punt_train_y)
 punt_xgb_test = xgb.DMatrix(data = punt_test_x, label = punt_test_y)
 punt_watchlist = list(train=punt_xgb_train, test=punt_xgb_test)
-punt_model = xgb.train(data = punt_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 0.8, watchlist=punt_watchlist, nrounds = 1000, verbose = 1, eta = 0.1, subsample = 0.9, lambda = 3)
-punt_model_xgboost = xgboost(data = punt_xgb_train, max_depth = 6, nrounds = 433, colsample_bytree = 1, colsample_bylevel = 1, verbose = 0, eta = 0.1, subsample = 0.9)
+punt_model = xgb.train(data = punt_xgb_train, max_depth = 8,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=punt_watchlist, nrounds = 1000, verbose = 0, eta = 0.05, subsample = 0.6, lambda = 1, early_stopping_rounds = 10)
+punt_model_xgboost = xgboost(data = punt_xgb_train, max_depth = 8,  colsample_bylevel = 1, colsample_bytree = 1, nrounds = 257, verbose = 0, eta = 0.05, subsample = 0.6, lambda = 1)
 punt_pred_y = predict(punt_model_xgboost, punt_xgb_test)
 print(paste("XG Boost RMSE:", RMSE(punt_test_y, punt_pred_y)))
 
@@ -184,12 +186,9 @@ plot(punt_res$yardline_100, punt_res$res)
 abline(0,0, col="blue")
 ```
 
-```{r}
-
-```
 
 
-```{r punt lasso}
+```{r punt lasso, include = FALSE}
 grid <- 10^seq(10, -2, length = 100)
 lasso.mod <- glmnet(punt_train_x, punt_train_y, alpha = 0, lambda = grid)
 plot(lasso.mod)
@@ -200,7 +199,7 @@ lasso.pred <- predict(lasso.mod, s = bestlam, newx = punt_test_x)
 print(paste("Lasso RMSE:", RMSE(punt_test_y, lasso.pred)))
 ```
 
-```{r punt ridge}
+```{r punt ridge, include = FALSE}
 ridge.mod <- glmnet(punt_train_x, punt_train_y, alpha = 0, lambda = grid, 
                     thresh = 1e-12)
 ridge.pred <- predict(ridge.mod, s = 4, newx = punt_test_x)
@@ -208,6 +207,8 @@ print(paste("Ridge RMSE:", RMSE(punt_test_y, ridge.pred)))
 ```
 
 Our optimal punt XG Boost model has a RMSE of 0.0216, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we will continue with this as our punt WPA model.
+
+### Kick Model
 
 ```{r kick xgboost}
 set.seed(12321)
@@ -243,7 +244,7 @@ lasso.pred.kick <- predict(lasso.mod.kick, s = bestlam, newx = kick_test_x)
 print(paste("Lasso RMSE:", RMSE(kick_test_y, lasso.pred.kick)))
 ```
 
-```{r kick ridge}
+```{r kick ridge, include = FALSE}
 ridge.mod.kick <- glmnet(kick_train_x, kick_train_y, alpha = 0, lambda = grid, 
                     thresh = 1e-12)
 ridge.pred.kick <- predict(ridge.mod.kick, s = 4, newx = kick_test_x)
@@ -251,6 +252,8 @@ print(paste("Ridge RMSE:", RMSE(kick_test_y, ridge.pred.kick)))
 ```
 
 Our optimal kick XG Boost model has a RMSE of 0.3921, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we will continue with this as our kick WPA model.
+
+### Go Model
 
 ```{r go xgboost model}
 set.seed(12321)
@@ -264,7 +267,7 @@ go_test_y <- go_data_test$wpa
 go_xgb_train = xgb.DMatrix(data = go_train_x, label = go_train_y)
 go_xgb_test = xgb.DMatrix(data = go_test_x, label = go_test_y)
 go_watchlist = list(train=go_xgb_train, test=go_xgb_test)
-go_model = xgb.train(data = go_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=kick_watchlist, nrounds = 100, verbose = 0, eta = 0.1, subsample = 0.9)
+go_model = xgb.train(data = go_xgb_train, max_depth = 8,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=kick_watchlist, nrounds = 500, verbose = 0, eta = 0.05, subsample = 0.7)
 go_model_xgboost = xgboost(data = go_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, nrounds = 60, verbose = 0, eta = 0.1, subsample = 0.9)
 go_pred_y = predict(go_model_xgboost, go_xgb_test)
 print(paste("XG Boost RMSE:", RMSE(go_test_y, go_pred_y)))
@@ -276,7 +279,7 @@ plot(go_res$yardline_100, go_res$res)
 abline(0,0, col="blue")
 ```
 
-```{r go lasso, warning =FALSE}
+```{r go lasso, include =FALSE}
 lasso.mod.go <- glmnet(go_train_x, go_train_y, alpha = 0, lambda = grid)
 plot(lasso.mod.go)
 cv.out.go <- cv.glmnet(go_train_x, go_train_y, alpha = 0)
@@ -286,7 +289,7 @@ lasso.pred.go <- predict(lasso.mod.go, s = bestlam, newx = go_test_x)
 print(paste("Lasso RMSE:", RMSE(go_test_y, lasso.pred)))
 ```
 
-```{r go ridge}
+```{r go ridge, include = FALSE}
 ridge.mod.go <- glmnet(go_train_x, go_train_y, alpha = 0, lambda = grid, 
                     thresh = 1e-12)
 ridge.pred.go <- predict(ridge.mod.go, s = 4, newx = go_test_x)
@@ -294,6 +297,8 @@ print(paste("Ridge RMSE:", RMSE(go_test_y, ridge.pred.go)))
 ```
 
 Our optimal go for it XG Boost model has a RMSE of 0.5492, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we will continue with this as our go for it WPA model.
+
+## Results
 
 ```{r}
 pred_data <- data_main %>% 
@@ -305,26 +310,25 @@ data_x <- data.matrix(pred_data[, -1])
 data_y <- pred_data$wpa
 xgb_matrix = xgb.DMatrix(data = data_x, label = data_y)
 
-punt_preds = predict(punt_model_xgboost, xgb_matrix)
-kick_preds = predict(kick_model_xgboost, xgb_matrix)
-go_preds = predict(go_model_xgboost, xgb_matrix)
+#punt_preds = predict(punt_model_xgboost, xgb_matrix)
+#kick_preds = predict(kick_model_xgboost, xgb_matrix)
+#go_preds = predict(go_model_xgboost, xgb_matrix)
 
-pred_data = cbind(pred_data, play_type = data_main$play_type, team = data_main$posteam, year = data_main$year, punt_preds, kick_preds, go_preds) %>% 
-  mutate(recommendation = case_when((punt_preds > kick_preds) & (punt_preds > go_preds) ~ "punt",
-                                    (kick_preds > punt_preds) & (kick_preds > go_preds) ~ "field_goal",
-                                    (go_preds > kick_preds) & (go_preds > punt_preds) ~ "go"),
-         correct_call = ifelse(play_type == recommendation, "Yes", "No"),
-         yard_line = ifelse(yardline_100 > 50, -(100-yardline_100), yardline_100),
-         game_minutes_remaining = paste0(trunc(game_seconds_remaining/60), ":", game_seconds_remaining%%60)) 
+#pred_data = cbind(pred_data, play_type = data_main$play_type, team = data_main$posteam, year = data_main$year, punt_preds, kick_preds, go_preds) %>% 
+ # mutate(recommendation = case_when((punt_preds > kick_preds) & (punt_preds > go_preds) ~ "punt",
+                                    #(kick_preds > punt_preds) & (kick_preds > go_preds) ~ "field_goal",
+                                    #(go_preds > kick_preds) & (go_preds > punt_preds) ~ "go"),
+      #   correct_call = ifelse(play_type == recommendation, "Yes", "No"),
+        # yard_line = ifelse(yardline_100 > 50, -(100-yardline_100), yardline_100),
+        # game_minutes_remaining = paste0(trunc(game_seconds_remaining/60), ":", game_seconds_remaining%%60)) 
 
-pred_data %>% 
-  filter(correct_call == "No") %>% 
-  select(yard_line, game_minutes_remaining, ydstogo, score_differential, play_type, recommendation) %>% 
-  kable(digits = 3)
+#pred_data %>% 
+  #filter(correct_call == "No") %>% 
+  #select(yard_line, game_minutes_remaining, ydstogo, score_differential, play_type, recommendation) %>% 
+  #kable(digits = 3)
 
-example <- confusionMatrix(data=predicted_value, reference = expected_value)
-example
+#example <- confusionMatrix(data=predicted_value, reference = expected_value)
+#example
 ```
-
 
 # Discussion and Conclusion
