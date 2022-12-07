@@ -119,9 +119,6 @@ punt_data <- data_main %>%
             week, posteam, play_type, posteam_type)) %>% 
   select(wpa, everything())
 
-dim(punt_data)
-dim(go_data)
-
 kick_data <- data_main %>% 
   filter(play_type == "field_goal" & yardline_100 <= 50) %>% 
   select(-c(down, fourth_down_converted, fourth_down_failed, ep, epa, year,
@@ -136,11 +133,17 @@ go_data <- data_main %>%
 ```
 
 
-```{r play type counts}
+```{r play type counts, warning = FALSE}
 data_main %>% 
   group_by(play_type) %>% 
-  summarize(count = n()) %>% 
-  kable()
+  summarize(count = n(), perc = n()*100/nrow(data_main)) %>% 
+  kable(digits = 1)
+
+ggplot(data_main, aes(x=year)) + geom_line(aes(fill=..count.., color = play_type), stat="bin", binwidth= 1) +
+  scale_x_continuous(breaks = c(1999:2021), labels = c(1999:2021), limits = c(1999, 2021)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust=1),
+        panel.grid.minor.x = element_blank())
 ```
 
 ```{r count by decision}
