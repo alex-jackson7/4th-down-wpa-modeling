@@ -328,7 +328,9 @@ pred_data <- pred_data %>%
          game_minutes_remaining = paste0(trunc(game_seconds_remaining/60), ":", game_seconds_remaining%%60))
 
 pred_data = cbind(pred_data, play_type = data_main$play_type, team = data_main$posteam, year = data_main$year, ewpa_punt, ewpa_kick, ewpa_go) %>% 
-  mutate(recommendation = case_when((ewpa_punt > ewpa_kick) & (ewpa_punt > ewpa_go) ~ "punt",
+  mutate(
+    #ewpa_punt = ifelse(yard_line < 31, -1, ewpa_punt),
+         recommendation = case_when((ewpa_punt > ewpa_kick) & (ewpa_punt > ewpa_go) ~ "punt",
                                     (ewpa_kick > ewpa_punt) & (ewpa_kick > ewpa_go) ~ "field_goal",
                                     (ewpa_go > ewpa_kick) & (ewpa_go > ewpa_punt) ~ "go"),
          correct_call = ifelse(play_type == recommendation, "Yes", "No"),
@@ -350,6 +352,15 @@ pred_data$accuracy <- 100 * (1 - (pred_data$ewpa_max_percentile - pred_data$ewpa
 #example
 ggplot(pred_data, aes(x = accuracy)) +
   geom_density()
+
+pred_data %>% 
+  filter(yard_line>0,
+         year > 2020) %>% 
+  ggplot(aes(x=yard_line, fill = play_type)) + geom_density(alpha=0.7)
+
+pred_data %>% 
+  filter(yard_line>0) %>% 
+  ggplot(aes(x=yard_line, fill = recommendation)) + geom_histogram(binwidth = 1, alpha=.4, position="identity")
 ```
 
 ```{r}
@@ -388,6 +399,22 @@ crucial_data$accuracy <- 100 * (1 - (crucial_data$ewpa_max_percentile - crucial_
 
 ggplot(crucial_data, aes(x = accuracy)) +
   geom_density()
+
+crucial_data %>% 
+  arrange(desc(year))
+
+crucial_data %>% 
+  filter(yardline_100<51) %>% 
+  ggplot(aes(x=yardline_100, fill = play_type)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
+  theme_bw()+
+  labs(title = "Real Life Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
+
+crucial_data %>% 
+  filter(yardline_100<51) %>% 
+  ggplot(aes(x=yardline_100, fill = recommendation)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
+  theme_bw()+
+  scale_y_continuous(limits = c(0,1000))+
+  labs(title = "Model Recommended Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
 ```
 
 
