@@ -152,7 +152,7 @@ ggplot(punt_data, aes(x = wpa)) +
 ggplot(kick_data, aes(x = wpa)) +
   geom_histogram()
 ggplot(go_data, aes(x = wpa, color = as.factor(fourth_down_converted))) +
-  geom_histogram()
+  geom_density()
 ```
 
 ```{r wpa vs yard}
@@ -313,27 +313,35 @@ Our optimal go for it XG Boost model has a RMSE of 0.5492, which is the lowest R
 pred_data <- data_main %>% 
     select(-c(down, fourth_down_converted, fourth_down_failed, ep, epa, year,
             week, posteam, play_type, posteam_type)) %>% 
-  select(wpa, everything())
+  select(wpa, everything()) 
 
 data_x <- data.matrix(pred_data[, -1])
 data_y <- pred_data$wpa
 xgb_matrix = xgb.DMatrix(data = data_x, label = data_y)
 
-punt_preds = predict(punt_model_xgboost, xgb_matrix)
-kick_preds = predict(kick_model_xgboost, xgb_matrix)
-go_preds = predict(go_model_xgboost, xgb_matrix)
+ewpa_punt = predict(punt_model_xgboost, xgb_matrix)
+ewpa_kick = predict(kick_model_xgboost, xgb_matrix)
+ewpa_go = predict(go_model_xgboost, xgb_matrix)
 
-pred_data = cbind(pred_data, play_type = data_main$play_type, team = data_main$posteam, year = data_main$year, punt_preds, kick_preds, go_preds) %>% 
-  mutate(recommendation = case_when((punt_preds > kick_preds) & (punt_preds > go_preds) ~ "punt",
-                                    (kick_preds > punt_preds) & (kick_preds > go_preds) ~ "field_goal",
-                                    (go_preds > kick_preds) & (go_preds > punt_preds) ~ "go"),
+pred_data <- pred_data %>% 
+  mutate(yard_line = ifelse(yardline_100 > 50, -(100-yardline_100), yardline_100),
+         game_minutes_remaining = paste0(trunc(game_seconds_remaining/60), ":", game_seconds_remaining%%60))
+
+pred_data = cbind(pred_data, play_type = data_main$play_type, team = data_main$posteam, year = data_main$year, ewpa_punt, ewpa_kick, ewpa_go) %>% 
+  mutate(recommendation = case_when((ewpa_punt > ewpa_kick) & (ewpa_punt > ewpa_go) ~ "punt",
+                                    (ewpa_kick > ewpa_punt) & (ewpa_kick > ewpa_go) ~ "field_goal",
+                                    (ewpa_go > ewpa_kick) & (ewpa_go > ewpa_punt) ~ "go"),
          correct_call = ifelse(play_type == recommendation, "Yes", "No"),
-         yard_line = ifelse(yardline_100 > 50, -(100-yardline_100), yardline_100),
-         game_minutes_remaining = paste0(trunc(game_seconds_remaining/60), ":", game_seconds_remaining%%60)) 
+         ewpa_max = pmax(ewpa_punt, ewpa_kick, ewpa_go),
+         ewpa_play = case_when((play_type == "punt") ~ ewpa_punt,
+                               (play_type == "field_goal") ~ ewpa_kick,
+                               (play_type == "go") ~ ewpa_go),
+         execution = wpa - ewpa_max,
+         accuracy = exp(ewpa_play) / exp(ewpa_max))
 
-pred_data %>% 
-  filter(correct_call == "No") %>% 
-  select(yard_line, game_minutes_remaining, ydstogo, score_differential, play_type, recommendation) 
+pred_data #%>% 
+  #filter(correct_call == "No") %>% 
+  #select(yard_line, game_minutes_remaining, ydstogo, score_differential, play_type, recommendation) 
 
 #example <- confusionMatrix(data=predicted_value, reference = expected_value)
 #example
