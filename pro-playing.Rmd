@@ -143,7 +143,11 @@ ggplot(data_main, aes(x=year)) + geom_line(aes(fill=..count.., color = play_type
   scale_x_continuous(breaks = c(1999:2021), labels = c(1999:2021), limits = c(1999, 2021)) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust=1),
-        panel.grid.minor.x = element_blank())
+        panel.grid.minor.x = element_blank()) +
+  labs(title = "Count of NFL 4th Down Plays",
+       subtitle = "4th Down Plays Between 1999 and 2022",
+       x = "Year", y = "# of Plays",
+       color = "Decision")
 ```
 
 ```{r count by decision}
@@ -161,6 +165,14 @@ ggplot(go_data, aes(x = yardline_100, y = wpa)) +
 ggplot(go_data, aes(x = ydstogo, y = wpa)) +
   geom_point()
 ```
+
+```{r}
+data_main %>% 
+  group_by(play_type) %>% 
+  summarise(mean_wpa = mean(wpa)) %>% 
+  kable(digits = 5)
+```
+
 
 # Modeling
 
@@ -396,12 +408,18 @@ crucial_data <- cbind(crucial_data, play_type = filtered_data$play_type,
 crucial_data$ewpa_max_percentile <- ecdf(crucial_data$ewpa_max)(crucial_data$ewpa_max)
 crucial_data$ewpa_play_percentile <- ecdf(crucial_data$ewpa_max)(crucial_data$ewpa_play)
 crucial_data$accuracy <- 100 * (1 - (crucial_data$ewpa_max_percentile - crucial_data$ewpa_play_percentile))
+  
 
 ggplot(crucial_data, aes(x = accuracy)) +
   geom_density()
 
 crucial_data %>% 
   arrange(desc(year))
+
+top_decisions <- crucial_data %>% 
+  arrange(desc(execution)) %>% 
+  select(ewpa_punt, ewpa_kick, ewpa_go, recommendation, play_type, wpa, execution, accuracy) %>%
+  head(10)
 
 crucial_data %>% 
   filter(yardline_100<51) %>% 
@@ -416,6 +434,19 @@ crucial_data %>%
   scale_y_continuous(limits = c(0,1000))+
   labs(title = "Model Recommended Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
 ```
+
+```{r}
+ggplot(crucial_data[year == 2021], aes(x = accuracy, y = execution)) +
+  geom_point() +
+  geom_smooth()
+```
+
+```{r}
+top_decisions %>% 
+  kable(digits = 3)
+```
+
+
 
 
 # Discussion and Conclusion
