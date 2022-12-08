@@ -313,7 +313,7 @@ Our optimal go for it XG Boost model has a RMSE of 0.5492, which is the lowest R
 pred_data <- data_main %>% 
     select(-c(down, fourth_down_converted, fourth_down_failed, ep, epa, year,
             week, posteam, play_type, posteam_type)) %>% 
-  select(wpa, everything()) 
+  select(wpa, everything())
 
 data_x <- data.matrix(pred_data[, -1])
 data_y <- pred_data$wpa
@@ -336,15 +336,59 @@ pred_data = cbind(pred_data, play_type = data_main$play_type, team = data_main$p
          ewpa_play = case_when((play_type == "punt") ~ ewpa_punt,
                                (play_type == "field_goal") ~ ewpa_kick,
                                (play_type == "go") ~ ewpa_go),
-         execution = wpa - ewpa_max,
-         accuracy = exp(ewpa_play) / exp(ewpa_max))
+         execution = wpa - ewpa_max)
 
-pred_data #%>% 
+pred_data$ewpa_max_percentile <- ecdf(pred_data$ewpa_max)(pred_data$ewpa_max)
+pred_data$ewpa_play_percentile <- ecdf(pred_data$ewpa_max)(pred_data$ewpa_play)
+pred_data$accuracy <- 100 * (1 - (pred_data$ewpa_max_percentile - pred_data$ewpa_play_percentile))
+
+#pred_data %>% 
   #filter(correct_call == "No") %>% 
   #select(yard_line, game_minutes_remaining, ydstogo, score_differential, play_type, recommendation) 
 
 #example <- confusionMatrix(data=predicted_value, reference = expected_value)
 #example
+ggplot(pred_data, aes(x = accuracy)) +
+  geom_density()
 ```
+
+```{r}
+crucial_data <- data_main %>% 
+  select(-c(down, fourth_down_converted, fourth_down_failed, ep, epa, year,
+            week, posteam, play_type, posteam_type)) %>% 
+  select(wpa, everything()) %>% 
+  filter((yardline_100 < 51 | ydstogo < 5) & (abs(score_differential) < 14.5) & (wp > 0.1))
+
+data_x <- data.matrix(crucial_data[, -1])
+data_y <- crucial_data$wpa
+xgb_matrix = xgb.DMatrix(data = data_x, label = data_y)
+
+ewpa_punt = predict(punt_model_xgboost, xgb_matrix)
+ewpa_kick = predict(kick_model_xgboost, xgb_matrix)
+ewpa_go = predict(go_model_xgboost, xgb_matrix)
+
+filtered_data <- data_main %>% 
+  filter((yardline_100 < 51 | ydstogo < 5) & (abs(score_differential) < 14.5) & (wp > 0.1))
+
+crucial_data <- cbind(crucial_data, play_type = filtered_data$play_type, 
+          team = filtered_data$posteam, year = filtered_data$year, ewpa_punt, ewpa_kick, ewpa_go) %>% 
+  mutate(recommendation = case_when((ewpa_punt > ewpa_kick) & (ewpa_punt > ewpa_go) ~ "punt",
+                                    (ewpa_kick > ewpa_punt) & (ewpa_kick > ewpa_go) ~ "field_goal",
+                                    (ewpa_go > ewpa_kick) & (ewpa_go > ewpa_punt) ~ "go"),
+         correct_call = ifelse(play_type == recommendation, "Yes", "No"),
+         ewpa_max = pmax(ewpa_punt, ewpa_kick, ewpa_go),
+         ewpa_play = case_when((play_type == "punt") ~ ewpa_punt,
+                               (play_type == "field_goal") ~ ewpa_kick,
+                               (play_type == "go") ~ ewpa_go),
+         execution = wpa - ewpa_max)
+
+crucial_data$ewpa_max_percentile <- ecdf(crucial_data$ewpa_max)(crucial_data$ewpa_max)
+crucial_data$ewpa_play_percentile <- ecdf(crucial_data$ewpa_max)(crucial_data$ewpa_play)
+crucial_data$accuracy <- 100 * (1 - (crucial_data$ewpa_max_percentile - crucial_data$ewpa_play_percentile))
+
+ggplot(crucial_data, aes(x = accuracy)) +
+  geom_density()
+```
+
 
 # Discussion and Conclusion
