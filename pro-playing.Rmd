@@ -23,6 +23,7 @@ library(xgboost)
 library(caTools)
 library(caret)
 library(glmnet)
+library(ggpmisc)
 ```
 
 # Introduction
@@ -436,15 +437,36 @@ crucial_data %>%
 ```
 
 ```{r}
-ggplot(crucial_data[year == 2021], aes(x = accuracy, y = execution)) +
+conf_mat_df <- crucial_data %>% 
+  droplevels(c("no_play", "qb_kneel"))
+recommendation = conf_mat_df$recommendation
+play_type = conf_mat_df$play_type
+conf_matrix <- tibble(play_type, recommendation)
+table(conf_matrix) %>% 
+  kable()
+```
+
+
+```{r}
+ggplot(crucial_data, aes(x = accuracy, y = execution)) +
   geom_point() +
-  geom_smooth()
+  stat_poly_line() +
+  stat_poly_eq(aes(label = after_stat(eq.label))) +
+  labs(title = "Accuracy vs. Execution of NFL Teams on 4th Down",
+       x = "Accuracy", y = "Execution"
+       )
 ```
 
 ```{r}
 top_decisions %>% 
   kable(digits = 3)
 ```
+
+```{r}
+ggplot(data_main, aes(x = wpa)) +
+  geom_density()
+```
+
 
 
 
