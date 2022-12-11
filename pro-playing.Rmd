@@ -23,16 +23,8 @@ library(xgboost)
 library(caTools)
 library(caret)
 library(glmnet)
-library(ggpmisc)
+#library(ggpmisc)
 ```
-
-# Introduction
-
-Our project examines NFL 4th down decision making using play-by-play data dating back to 1999. Our goal is to build three models that predict expected win probability added for each of the three decisions coaches have on fourth downs: kick a field goal, punt it, or go for it.
-
-# Exploratory Data Analysis
-
-Our data comes from the `nflfastR` package which contains data on every play dating back to 1999.
 
 ```{r load data, include = FALSE}
 data_99 <- nflfastR::load_pbp(1999) %>% 
@@ -103,17 +95,6 @@ data_main <- data %>%
   drop_na(play_type, wpa) %>% 
   filter(play_type %in% c("go", "field_goal", "punt"))
 
-run_pass <- data %>% 
-  select(yardline_100, game_seconds_remaining, qtr, 
-         down, ydstogo, score_differential, no_score_prob, 
-         opp_fg_prob, opp_safety_prob, opp_td_prob, fg_prob, safety_prob, 
-         td_prob, wp, fourth_down_converted, fourth_down_failed,
-         posteam_timeouts_remaining, defteam_timeouts_remaining, ep, epa, year, 
-         week, posteam, posteam_type, play_type, wpa, total_home_epa, total_away_epa) %>%
-  filter(down == 4,
-         play_type %in% c("run", "pass")) %>% 
-  drop_na(wpa)
-
 punt_data <- data_main %>% 
   filter(play_type == "punt" & yardline_100 >= 30) %>% 
   select(-c(down, fourth_down_converted, fourth_down_failed, ep, epa, year,
@@ -133,13 +114,22 @@ go_data <- data_main %>%
   select(wpa, everything())
 ```
 
+# Introduction
+
+Teams across the National Football League have been incorporating analytics into their decision making more and more over the past 20 years. The emergence of analytics has been increasingly dragged by those who think football and numbers should stay separate. Recently, the decision to go for 2 points after scoring a touchdown to go down 6 instead of 7 points late in the game has become a controversy, yet it is an analytically-correct move. We believe the next enhancement of the game in regards to the incorporation of analytics comes one 4th-down decision making. Our project examines NFL 4th down decision making using play-by-play data dating back to 1999. Our goal is to build three models that predict expected win probability added for each of the three decisions coaches have on fourth downs: kick a field goal, punt it, or go for it. Personally, we believe teams should be going for it more and punting less than how they operate currently, but we wish ti support this claim with models.
+
+For the purpose of our study, we simplified 4th down decision making, meaning we did not differentiate between run or pass plays, and any trick plays were included as going for it (i.e. lining up in punt formation does not classify it as a punt). To train our data, we used everything that was available to us. Our data comes from the `nflfastR` package which contains data on every play dating back to 1999. After filtering for 4th down plays, we used everything from this season all the way back to 1999. Although we considered basing our project on more recent data, we figured the more data the better and decided to use it all. 
+
+# Exploratory Data Analysis
 
 ```{r play type counts, warning = FALSE}
 data_main %>% 
   group_by(play_type) %>% 
   summarize(count = n(), perc = n()*100/nrow(data_main)) %>% 
   kable(digits = 1)
+```
 
+```{r fig.width=4, fig.height=3, fig.align='center'}
 ggplot(data_main, aes(x=year)) + geom_line(aes(fill=..count.., color = play_type), stat="bin", binwidth= 1) +
   scale_x_continuous(breaks = c(1999:2021), labels = c(1999:2021), limits = c(1999, 2021)) +
   theme_bw() +
@@ -150,6 +140,9 @@ ggplot(data_main, aes(x=year)) + geom_line(aes(fill=..count.., color = play_type
        x = "Year", y = "# of Plays",
        color = "Decision")
 ```
+
+To get a better idea of what our data looks like, we first wanted to see how much data of each type of play we have.
+Most 4th down plays are punts, of course, and only a small piece of our dataset is go for it plays, which also makes sense. Looking at the graph however, we can see an uptick in go attempts and a steady decrease in punts over the last 4 full seasons. This hints at the greater picture we are trying to discover: coaches haven't found the right go/punt/kick balance. But they are trending in the right direction. 
 
 ```{r count by decision}
 ggplot(punt_data, aes(x = wpa)) +
@@ -177,7 +170,7 @@ data_main %>%
 
 # Modeling
 
-The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state.
+The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. To do this, we trained 3 separate xGBoost models, each on their own data of one play type. [section on the reason we chose xgboost] We split the data for each model into train and test sets using 70-30 splits and then attempted to minimize the RMSE through adjusting model parameters. We also tested lasso and ridge regression models, just to make sure we were fitting the best possible type of model. 
 
 ### Punt Model
 
@@ -204,8 +197,6 @@ punt_res = data.frame(test_y= punt_test_y, pred_y = punt_pred_y, res = (punt_tes
 plot(punt_res$yardline_100, punt_res$res)
 abline(0,0, col="blue")
 ```
-
-
 
 ```{r punt lasso, include = FALSE}
 grid <- 10^seq(10, -2, length = 100)
@@ -468,6 +459,45 @@ ggplot(data_main, aes(x = wpa)) +
 ```
 
 
+```{r copy over}
+crucial_data %>% 
+  filter(yardline_100<51) %>% 
+  ggplot(aes(x=yardline_100, fill = play_type)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
+  theme_bw()+
+  labs(title = "Real Life Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
+
+crucial_data %>% 
+  filter(yardline_100<51) %>% 
+  ggplot(aes(x=yardline_100, fill = recommendation)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
+  theme_bw()+
+  scale_y_continuous(limits = c(0,1000))+
+  labs(title = "Model Recommended Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
+
+pred_data %>% 
+  group_by(yard_line, play_type) %>% 
+  summarise(count = n())
+
+pred_data %>% 
+  mutate(ewpa_punt = ifelse((yard_line < 31) & (yard_line > 0), -1, ewpa_punt),
+         ewpa_kick = ifelse(yard_line < 0, -1, ewpa_kick),
+         recommendation = case_when((ewpa_punt > ewpa_kick) & (ewpa_punt > ewpa_go) ~ "punt",
+                                    (ewpa_kick > ewpa_punt) & (ewpa_kick > ewpa_go) ~ "field_goal",
+                                    (ewpa_go > ewpa_kick) & (ewpa_go > ewpa_punt) ~ "go")) %>% 
+  filter(yardline_100<51) %>% 
+  ggplot(aes(x=yardline_100, fill = recommendation)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
+  theme_bw()+
+  scale_y_continuous(limits = c(0,1000))+
+  labs(title = "Model Recommended Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
+
+pred_data %>% 
+  filter(yard_line>0,
+         year > 2020) %>% 
+  ggplot(aes(x=yard_line, fill = play_type)) + geom_density(alpha=0.7)
+
+pred_data %>% 
+  filter(yard_line>0) %>% 
+  ggplot(aes(x=yard_line, fill = recommendation)) + geom_histogram(binwidth = 1, alpha=.4, position="identity")
+```
 
 
 
