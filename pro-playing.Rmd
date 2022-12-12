@@ -24,6 +24,7 @@ library(caTools)
 library(caret)
 library(glmnet)
 library(ggpmisc)
+library(patchwork)
 ```
 
 ```{r load data, echo = FALSE}
@@ -145,19 +146,20 @@ ggplot(data_main, aes(x=year)) + geom_line(aes(fill=..count.., color = play_type
 To get a better idea of what our data looks like, we first wanted to see how much data of each type of play we have.
 Most 4th down plays are punts, of course, and only a small piece of our dataset is go for it plays, which also makes sense. Looking at the graph however, we can see an uptick in go attempts and a steady decrease in punts over the last 4 full seasons. This hints at the greater picture we are trying to discover: coaches haven't found the right go/punt/kick balance. But they are trending in the right direction. 
 
-```{r count by decision, echo = FALSE, fig.width=4, fig.height=3, fig.align='center'}
-ggplot(data_main, aes(x = wpa, color = play_type)) +
+```{r count by decision, echo = FALSE, fig.width=3, fig.height=4, fig.align='center'}
+a <- ggplot(data_main, aes(x = wpa, color = play_type)) +
   geom_density() +
   labs(title = "WPA Density Plots",
        subtitle = "By Play Type",
        x = "WPA", y = "Density") +
   guides(color=guide_legend(title="Play Type"))
-ggplot(go_data, aes(x = wpa, color = as.factor(fourth_down_converted))) +
+b <- ggplot(go_data, aes(x = wpa, color = as.factor(fourth_down_converted))) +
   geom_density() +
   labs(title = "Going for It WPA Density Plots",
        subtitle = "By 4th Down Converted",
        x = "WPA", y = "Density") +
   guides(color=guide_legend(title="4th Converted"))
+a / b
 ```
 
 We can also see that while most of the density plots for WPA are relatively normal, the density plot for going for it on 4th down appears slightly bimodal. This is because a successful 4th down conversion usually leads to a bigger change in WPA than a 4th down failed attempt. While we weren't sure if this was worthy of transforming WPA for the go for it model or all the models, it is something to beware of moving forward.
@@ -170,7 +172,7 @@ The goal with our models is to create the best possible models for predicting WP
 
 ### Punt Model
 
-```{r punt xgboost, fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
+```{r punt xgboost, fig.width=4, fig.height=3, fig.align='center', include = FALSE}
 set.seed(12321)
 sample <- sample(c(TRUE, FALSE), nrow(punt_data), replace = TRUE, prob = c(0.7, 0.3))
 punt_data_train <- punt_data[sample, ]
@@ -216,7 +218,7 @@ Our optimal punt XG Boost model has a RMSE of 0.0216, which is the lowest RMSE w
 
 ### Kick Model
 
-```{r kick xgboost, fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
+```{r kick xgboost, fig.width=4, fig.height=3, fig.align='center', include = FALSE}
 set.seed(12321)
 sample <- sample(c(TRUE, FALSE), nrow(kick_data), replace = TRUE, prob = c(0.7, 0.3))
 kick_data_train <- kick_data[sample, ]
@@ -261,7 +263,7 @@ Our optimal kick XG Boost model has a RMSE of 0.3921, which is the lowest RMSE w
 
 ### Go Model
 
-```{r go xgboost model, fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
+```{r go xgboost model, fig.width=4, fig.height=3, fig.align='center', include = FALSE}
 go_data <- go_data %>% 
   select(-fourth_down_converted)
 
@@ -343,6 +345,9 @@ pred_data = cbind(pred_data, play_type = data_main$play_type, team = data_main$p
 pred_data$ewpa_max_percentile <- ecdf(pred_data$ewpa_max)(pred_data$ewpa_max)
 pred_data$ewpa_play_percentile <- ecdf(pred_data$ewpa_max)(pred_data$ewpa_play)
 pred_data$accuracy <- 100 * (1 - (pred_data$ewpa_max_percentile - pred_data$ewpa_play_percentile))
+```
+
+``` {r fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
 
 #pred_data %>% 
   #filter(correct_call == "No") %>% 
@@ -396,14 +401,14 @@ crucial_data <- cbind(crucial_data, play_type = filtered_data$play_type,
 crucial_data$ewpa_max_percentile <- ecdf(crucial_data$ewpa_max)(crucial_data$ewpa_max)
 crucial_data$ewpa_play_percentile <- ecdf(crucial_data$ewpa_max)(crucial_data$ewpa_play)
 crucial_data$accuracy <- 100 * (1 - (crucial_data$ewpa_max_percentile - crucial_data$ewpa_play_percentile))
-  
+```
 
+``` {r fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
 ggplot(crucial_data, aes(x = accuracy)) +
   geom_density()
+```
 
-crucial_data %>% 
-  arrange(desc(year))
-
+``` {r echo = FALSE}
 top_decisions <- crucial_data %>% 
   arrange(desc(execution)) %>% 
   select(ewpa_punt, ewpa_kick, ewpa_go, recommendation, play_type, wpa, execution, accuracy) %>%
@@ -434,7 +439,7 @@ table(conf_matrix) %>%
 ```
 
 
-```{r echo = FALSE}
+```{r echo = FALSE,  fig.width=4, fig.height=3, fig.align='center'}
 ggplot(crucial_data, aes(x = accuracy, y = execution)) +
   geom_point() +
   stat_poly_line() +
@@ -449,7 +454,7 @@ top_decisions %>%
   kable(digits = 3)
 ```
 
-```{r echo = FALSE}
+```{r fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
 ggplot(data_main, aes(x = wpa)) +
   geom_density()
 ```
@@ -457,7 +462,7 @@ ggplot(data_main, aes(x = wpa)) +
 
 
 
-```{r copy over, echo = FALSE}
+```{r copy over, fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
 crucial_data %>% 
   filter(yardline_100<51) %>% 
   ggplot(aes(x=yardline_100, fill = play_type)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
