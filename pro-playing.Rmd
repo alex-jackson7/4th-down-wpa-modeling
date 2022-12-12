@@ -311,6 +311,8 @@ Our optimal go for it XG Boost model has a RMSE of 0.5492, which is the lowest R
 
 ## Results
 
+In our analysis, we initially applied our predictions to the entire dataset. While this would have been fine for exploration purposes, we thought it would be better to filter the data we were analyzing a bit more. Many plays in the larger dataset are "obvious" football situations where we don't need a model to tell us whether to put, kick or go for it. To get at the more nuanced plays, we created a "crucial play" dataset. This only includes plays on the opponents side of the field or within 5 yards of the line to gain, where the game is within 14 points, and where the possessing team has greater than a 0.1% chance to win. We figured this would increase the strength of our predictions as a whole and weed out some of the more pointless plays. However, we did train our models on the entire dataset in hopes that they would learn more about what it means to punt it tough situations or go for it in long to gain scenarios. 
+
 ```{r echo = FALSE}
 pred_data <- data_main %>% 
     select(-c(down, fourth_down_converted, fourth_down_failed, ep, epa, year,
@@ -409,6 +411,8 @@ top_decisions <- crucial_data %>%
   select(ewpa_punt, ewpa_kick, ewpa_go, recommendation, play_type, wpa, execution, accuracy) %>%
   head(10)
 
+par(mfrow =c(1,2))
+
 crucial_data %>% 
   filter(yardline_100<51) %>% 
   ggplot(aes(x=yardline_100, fill = play_type)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
@@ -422,6 +426,8 @@ crucial_data %>%
   scale_y_continuous(limits = c(0,1000))+
   labs(title = "Model Recommended Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
 ```
+To visualize our recommendations, we plotted the frequency of each play on each yard line beyond the 50 on crucial plays.
+What is immediately apparent is the number of go plays. Our models clearly favors go plays over the other types of plays, which makes sense since going for it has the most direct path to points. What's also noticeable is the extension of punt plays across the entire length of the field. The punts peak as we get closer to the 50, which is what we expect, but as seen from the plot of how the crucial plays were actually made (left) there were no punts from within the 30 yard line. Our model doesn't understand football conceptually and thus draws this big limitation. On a positive note, our model does a nice job of creating a bi-modal structure of go plays with field goals punting in the middle. This is exactly what we were hoping to see, since going for it becomes more valuable closer to the goal line and kicking a field goal becomes harder closer to the 50 yard line. The actual plays have a similar shape, with go plays peaking at the 1 yard line and around the 36 yard line, and field goals taking up a much larger portion of the area in between. 
 
 ```{r echo = FALSE}
 conf_mat_df <- crucial_data %>% 
