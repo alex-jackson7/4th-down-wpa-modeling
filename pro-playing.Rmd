@@ -123,7 +123,7 @@ For the purpose of our study, we simplified 4th down decision making, meaning we
 
 # Exploratory Data Analysis
 
-```{r fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
+```{r fig.width=6, fig.height=4, fig.align='center', echo = FALSE}
 ggplot(data_main, aes(x=year)) + geom_line(aes(fill=..count.., color = play_type), stat="bin", binwidth= 1) +
   scale_x_continuous(breaks = c(1999:2021), labels = c(1999:2021), limits = c(1999, 2021)) +
   theme_bw() +
@@ -405,29 +405,31 @@ crucial_data$accuracy <- 100 * (1 - (crucial_data$ewpa_max_percentile - crucial_
   #geom_density()
 ```
 
-``` {r echo = FALSE}
+``` {r fig.height = 5, fig.width = 5, echo = FALSE}
 top_decisions <- crucial_data %>% 
   arrange(desc(execution)) %>% 
   select(ewpa_punt, ewpa_kick, ewpa_go, recommendation, play_type, wpa, execution, accuracy) %>%
   head(10)
 
-par(mfrow =c(1,2))
 
-crucial_data %>% 
+
+c<-crucial_data %>% 
   filter(yardline_100<51) %>% 
   ggplot(aes(x=yardline_100, fill = play_type)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
   theme_bw()+
   labs(title = "Real Life Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
 
-crucial_data %>% 
+d<-crucial_data %>% 
   filter(yardline_100<51) %>% 
   ggplot(aes(x=yardline_100, fill = recommendation)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
   theme_bw()+
   scale_y_continuous(limits = c(0,1000))+
   labs(title = "Model Recommended Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
+
+c/d
 ```
 To visualize our recommendations, we plotted the frequency of each play on each yard line beyond the 50 on crucial plays.
-What is immediately apparent is the number of go plays. Our models clearly favors go plays over the other types of plays, which makes sense since going for it has the most direct path to points. What's also noticeable is the extension of punt plays across the entire length of the field. The punts peak as we get closer to the 50, which is what we expect, but as seen from the plot of how the crucial plays were actually made (left) there were no punts from within the 30 yard line. Our model doesn't understand football conceptually and thus draws this big limitation. On a positive note, our model does a nice job of creating a bi-modal structure of go plays with field goals punting in the middle. This is exactly what we were hoping to see, since going for it becomes more valuable closer to the goal line and kicking a field goal becomes harder closer to the 50 yard line. The actual plays have a similar shape, with go plays peaking at the 1 yard line and around the 36 yard line, and field goals taking up a much larger portion of the area in between. 
+What is immediately apparent is the number of go plays. Our models clearly favors go plays over the other types of plays, which makes sense since going for it has the most direct path to points. What's also noticeable is the extension of punt plays across the entire length of the field. The punts peak as we get closer to the 50, which is what we expect, but as seen from the plot of how the crucial plays were actually made (top) there were no punts from within the 30 yard line. Our model doesn't understand football conceptually and thus draws this big limitation. On a positive note, our model does a nice job of creating a bi-modal structure of go plays with field goals punting in the middle. This is exactly what we were hoping to see, since going for it becomes more valuable closer to the goal line and kicking a field goal becomes harder closer to the 50 yard line. The actual plays have a similar shape, with go plays peaking at the 1 yard line and around the 36 yard line, and field goals taking up a much larger portion of the area in between. 
 
 ```{r echo = FALSE}
 conf_mat_df <- crucial_data %>% 
