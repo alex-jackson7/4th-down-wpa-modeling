@@ -23,10 +23,10 @@ library(xgboost)
 library(caTools)
 library(caret)
 library(glmnet)
-#library(ggpmisc)
+library(ggpmisc)
 ```
 
-```{r load data, include = FALSE}
+```{r load data, echo = FALSE}
 data_99 <- nflfastR::load_pbp(1999) %>% 
   mutate(year = 1999)
 data_00 <- nflfastR::load_pbp(2000) %>% 
@@ -81,7 +81,7 @@ data <- rbind(data_99, data_00, data_01, data_02, data_03, data_04, data_05,
               data_20, data_21, data_22)
 ```
 
-```{r clean data, include = FALSE}
+```{r clean data, echo = FALSE}
 data_main <- data %>% 
   mutate(pos_team_epa = ifelse(posteam == home_team, total_home_epa, total_away_epa)) %>% 
   select(yardline_100, game_seconds_remaining, qtr, 
@@ -122,14 +122,15 @@ For the purpose of our study, we simplified 4th down decision making, meaning we
 
 # Exploratory Data Analysis
 
-```{r play type counts, warning = FALSE}
+```{r play type counts, echo = FALSE}
 data_main %>% 
   group_by(play_type) %>% 
-  summarize(count = n(), perc = n()*100/nrow(data_main)) %>% 
-  kable(digits = 1)
+  summarize(count = n(), 
+            mean_wpa = mean(wpa)) %>% 
+  kable(digits = 5)
 ```
 
-```{r fig.width=4, fig.height=3, fig.align='center'}
+```{r fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
 ggplot(data_main, aes(x=year)) + geom_line(aes(fill=..count.., color = play_type), stat="bin", binwidth= 1) +
   scale_x_continuous(breaks = c(1999:2021), labels = c(1999:2021), limits = c(1999, 2021)) +
   theme_bw() +
@@ -144,37 +145,32 @@ ggplot(data_main, aes(x=year)) + geom_line(aes(fill=..count.., color = play_type
 To get a better idea of what our data looks like, we first wanted to see how much data of each type of play we have.
 Most 4th down plays are punts, of course, and only a small piece of our dataset is go for it plays, which also makes sense. Looking at the graph however, we can see an uptick in go attempts and a steady decrease in punts over the last 4 full seasons. This hints at the greater picture we are trying to discover: coaches haven't found the right go/punt/kick balance. But they are trending in the right direction. 
 
-```{r count by decision}
-ggplot(punt_data, aes(x = wpa)) +
-  geom_histogram() 
-ggplot(kick_data, aes(x = wpa)) +
-  geom_histogram()
+```{r count by decision, echo = FALSE, fig.width=4, fig.height=3, fig.align='center'}
+ggplot(data_main, aes(x = wpa, color = play_type)) +
+  geom_density() +
+  labs(title = "WPA Density Plots",
+       subtitle = "By Play Type",
+       x = "WPA", y = "Density") +
+  guides(color=guide_legend(title="Play Type"))
 ggplot(go_data, aes(x = wpa, color = as.factor(fourth_down_converted))) +
-  geom_density()
+  geom_density() +
+  labs(title = "Going for It WPA Density Plots",
+       subtitle = "By 4th Down Converted",
+       x = "WPA", y = "Density") +
+  guides(color=guide_legend(title="4th Converted"))
 ```
 
-```{r wpa vs yard}
-ggplot(go_data, aes(x = yardline_100, y = wpa)) +
-  geom_point() 
-ggplot(go_data, aes(x = ydstogo, y = wpa)) +
-  geom_point()
-```
-
-```{r}
-data_main %>% 
-  group_by(play_type) %>% 
-  summarise(mean_wpa = mean(wpa)) %>% 
-  kable(digits = 5)
-```
-
+We can also see that while most of the density plots for WPA are relatively normal, the density plot for going for it on 4th down appears slightly bimodal. This is because a successful 4th down conversion usually leads to a bigger change in WPA than a 4th down failed attempt. While we weren't sure if this was worthy of transforming WPA for the go for it model or all the models, it is something to beware of moving forward.
 
 # Modeling
 
-The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. To do this, we trained 3 separate xGBoost models, each on their own data of one play type. [section on the reason we chose xgboost] We split the data for each model into train and test sets using 70-30 splits and then attempted to minimize the RMSE through adjusting model parameters. We also tested lasso and ridge regression models, just to make sure we were fitting the best possible type of model. 
+The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. To do this, we trained 3 separate xGBoost models, each on their own data of one play type. We began by training a baseline xgboost model as well as a Lasso and Ridge regression model for each play type. After examining the MSEs of the models, the xgboost baseline model performed much better than both the ridge and lasso optimal models. After we decided to use xgboost for our final model, we played around with the parameters of the model to try and achieve the best predictive model possible.
+
+[section on the reason we chose xgboost] We split the data for each model into train and test sets using 70-30 splits and then attempted to minimize the RMSE through adjusting model parameters. We also tested lasso and ridge regression models, just to make sure we were fitting the best possible type of model. 
 
 ### Punt Model
 
-```{r punt xgboost}
+```{r punt xgboost, fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
 set.seed(12321)
 sample <- sample(c(TRUE, FALSE), nrow(punt_data), replace = TRUE, prob = c(0.7, 0.3))
 punt_data_train <- punt_data[sample, ]
@@ -220,7 +216,7 @@ Our optimal punt XG Boost model has a RMSE of 0.0216, which is the lowest RMSE w
 
 ### Kick Model
 
-```{r kick xgboost}
+```{r kick xgboost, fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
 set.seed(12321)
 sample <- sample(c(TRUE, FALSE), nrow(kick_data), replace = TRUE, prob = c(0.7, 0.3))
 kick_data_train <- kick_data[sample, ]
@@ -265,7 +261,7 @@ Our optimal kick XG Boost model has a RMSE of 0.3921, which is the lowest RMSE w
 
 ### Go Model
 
-```{r go xgboost model}
+```{r go xgboost model, fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
 go_data <- go_data %>% 
   select(-fourth_down_converted)
 
@@ -280,7 +276,7 @@ go_test_y <- go_data_test$wpa
 go_xgb_train = xgb.DMatrix(data = go_train_x, label = go_train_y)
 go_xgb_test = xgb.DMatrix(data = go_test_x, label = go_test_y)
 go_watchlist = list(train=go_xgb_train, test=go_xgb_test)
-go_model = xgb.train(data = go_xgb_train, max_depth = 8,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=kick_watchlist, nrounds = 500, verbose = 0, eta = 0.05, subsample = 0.7)
+go_model = xgb.train(data = go_xgb_train, max_depth = 8,  colsample_bylevel = 1, colsample_bytree = 1, watchlist=go_watchlist, nrounds = 500, verbose = 0, eta = 0.05, subsample = 0.7)
 go_model_xgboost = xgboost(data = go_xgb_train, max_depth = 6,  colsample_bylevel = 1, colsample_bytree = 1, nrounds = 60, verbose = 0, eta = 0.1, subsample = 0.9)
 go_pred_y = predict(go_model_xgboost, go_xgb_test)
 print(paste("XG Boost RMSE:", RMSE(go_test_y, go_pred_y)))
@@ -313,7 +309,7 @@ Our optimal go for it XG Boost model has a RMSE of 0.5492, which is the lowest R
 
 ## Results
 
-```{r}
+```{r echo = FALSE}
 pred_data <- data_main %>% 
     select(-c(down, fourth_down_converted, fourth_down_failed, ep, epa, year,
             week, posteam, play_type, posteam_type)) %>% 
@@ -367,7 +363,7 @@ pred_data %>%
   ggplot(aes(x=yard_line, fill = recommendation)) + geom_histogram(binwidth = 1, alpha=.4, position="identity")
 ```
 
-```{r}
+```{r echo = FALSE}
 crucial_data <- data_main %>% 
   select(-c(down, fourth_down_converted, fourth_down_failed, ep, epa, year,
             week, posteam, play_type, posteam_type)) %>% 
@@ -427,7 +423,7 @@ crucial_data %>%
   labs(title = "Model Recommended Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
 ```
 
-```{r}
+```{r echo = FALSE}
 conf_mat_df <- crucial_data %>% 
   droplevels(c("no_play", "qb_kneel"))
 recommendation = conf_mat_df$recommendation
@@ -438,7 +434,7 @@ table(conf_matrix) %>%
 ```
 
 
-```{r}
+```{r echo = FALSE}
 ggplot(crucial_data, aes(x = accuracy, y = execution)) +
   geom_point() +
   stat_poly_line() +
@@ -448,18 +444,20 @@ ggplot(crucial_data, aes(x = accuracy, y = execution)) +
        )
 ```
 
-```{r}
+```{r echo = FALSE}
 top_decisions %>% 
   kable(digits = 3)
 ```
 
-```{r}
+```{r echo = FALSE}
 ggplot(data_main, aes(x = wpa)) +
   geom_density()
 ```
 
 
-```{r copy over}
+
+
+```{r copy over, echo = FALSE}
 crucial_data %>% 
   filter(yardline_100<51) %>% 
   ggplot(aes(x=yardline_100, fill = play_type)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
@@ -499,6 +497,6 @@ pred_data %>%
   ggplot(aes(x=yard_line, fill = recommendation)) + geom_histogram(binwidth = 1, alpha=.4, position="identity")
 ```
 
-
-
 # Discussion and Conclusion
+
+While our 
