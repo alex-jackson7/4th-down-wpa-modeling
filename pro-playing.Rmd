@@ -123,6 +123,17 @@ For the purpose of our study, we simplified 4th down decision making, meaning we
 
 # Exploratory Data Analysis
 
+To get a better idea of what our data looks like, we first wanted to see how much data of each type of play we have.
+Most 4th down plays are punts, of course, and only a small piece of our dataset is go for it plays, which also makes sense. Looking at the graph, however, we can see an uptick in go attempts and a steady decrease in punts over the last 4 full seasons. This hints at the greater picture we are trying to discover: coaches haven't found the right go/punt/kick balance. But they are trending in the right direction. 
+
+```{r play type counts, echo = FALSE}
+data_main %>% 
+  group_by(play_type) %>% 
+  summarize(count = n(), 
+            mean_wpa = mean(wpa)) %>% 
+  kable(digits = 5)
+```
+
 ```{r fig.width=6, fig.height=4, fig.align='center', echo = FALSE}
 ggplot(data_main, aes(x=year)) + geom_line(aes(fill=..count.., color = play_type), stat="bin", binwidth= 1) +
   scale_x_continuous(breaks = c(1999:2021), labels = c(1999:2021), limits = c(1999, 2021)) +
@@ -135,40 +146,30 @@ ggplot(data_main, aes(x=year)) + geom_line(aes(fill=..count.., color = play_type
        color = "Decision")
 ```
 
-```{r play type counts, echo = FALSE}
-data_main %>% 
-  group_by(play_type) %>% 
-  summarize(count = n(), 
-            mean_wpa = mean(wpa)) %>% 
-  kable(digits = 5)
-```
-
-To get a better idea of what our data looks like, we first wanted to see how much data of each type of play we have.
-Most 4th down plays are punts, of course, and only a small piece of our dataset is go for it plays, which also makes sense. Looking at the graph above, however, we can see an uptick in go attempts and a steady decrease in punts over the last 4 full seasons. This hints at the greater picture we are trying to discover: coaches haven't found the right go/punt/kick balance. But they are trending in the right direction. 
-
-```{r count by decision, echo = FALSE, fig.width=7, fig.height=4}
-a <- ggplot(data_main, aes(x = wpa, color = play_type)) +
+```{r echo = FALSE, fig.width=5.5, fig.align='center', fig.height=4}
+ggplot(data_main, aes(x = wpa, color = play_type)) +
   geom_density() +
   labs(title = "WPA Density Plots",
        subtitle = "By Play Type",
        x = "WPA", y = "Density") +
   guides(color=guide_legend(title="Play Type"))
-b <- ggplot(go_data, aes(x = wpa, color = as.factor(fourth_down_converted))) +
+```
+
+```{r count by decision, echo = FALSE, fig.align='center', fig.width=5.5, fig.height=4}
+ggplot(go_data, aes(x = wpa, color = as.factor(fourth_down_converted))) +
   geom_density() +
   labs(title = "Going for It WPA Density Plots",
        subtitle = "By 4th Down Converted (Yes = 1)",
        x = "WPA", y = "Density") +
   guides(color=guide_legend(title="4th Converted"))
-a + b
 ```
 
-We can also see that while most of the density plots for WPA are relatively normal, the density plot for going for it on 4th down appears slightly bimodal. This is because a successful 4th down conversion usually leads to a bigger change in WPA than a 4th down failed attempt. While we weren't sure if this was worthy of transforming WPA for the go for it model or all the models, it is something to beware of moving forward.
+
+We also wanted to take a look at the distribution of our response variable, `wpa`. Looking at the density plots above, we can see that while the density plots of punt and kick plays look relatively normal, the density plot for going for it on 4th down appears slightly bimodal. After looking at the second plot, we can see this is due to a fourth down conversion having the biggest impact on `wpa`. This is due to successful 4th down conversions usually leading to a bigger change in WPA than a 4th down failed attempt. We believe this is because the probability of conversion is lower and teams who go for it tend to have below-average win probabilities, meaning a conversion leads to a big increase while most fourth down fails for a team already losing aren't as harmful. While we weren't sure if this was worthy of transforming WPA for the go for it model or all the models, it is something to beware of moving forward.
 
 # Modeling
 
-The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. To do this, we trained 3 separate xGBoost models, each on their own data of one play type. We began by training a baseline xgboost model as well as a Lasso and Ridge regression model for each play type. After examining the MSEs of the models, the xgboost baseline model performed much better than both the ridge and lasso optimal models. After we decided to use xgboost for our final model, we played around with the parameters of the model to try and achieve the best predictive model possible.
-
-[section on the reason we chose xgboost] We split the data for each model into train and test sets using 70-30 splits and then attempted to minimize the RMSE through adjusting model parameters. We also tested lasso and ridge regression models, just to make sure we were fitting the best possible type of model. 
+The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. To do this, we trained 3 separate xGBoost models, each on their own data of one play type. We first split the data for each model into train and test sets using 70-30 splits. We began by training a baseline xgboost model as well as a Lasso and Ridge regression model for each play type. After examining the RMSEs of the models, the xgboost baseline model performed much better than both the ridge and lasso optimal models. After we decided to use xgboost for our final model, we played around with the parameters of the model to try and achieve the best predictive model possible. We did this by attempting to minimize our test set RMSE across different xgboost parameters such as learning rate, number of iterations, subsample, and the max depth of each tree. 
 
 ### Punt Model
 
@@ -214,7 +215,7 @@ ridge.pred <- predict(ridge.mod, s = 4, newx = punt_test_x)
 print(paste("Ridge RMSE:", RMSE(punt_test_y, ridge.pred)))
 ```
 
-Our optimal punt XG Boost model has a RMSE of 0.0216, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we will continue with this as our punt WPA model.
+Our optimal punt XG Boost model has a RMSE of 0.0216, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we used this as our punt wpa model.
 
 ### Kick Model
 
@@ -259,7 +260,7 @@ ridge.pred.kick <- predict(ridge.mod.kick, s = 4, newx = kick_test_x)
 print(paste("Ridge RMSE:", RMSE(kick_test_y, ridge.pred.kick)))
 ```
 
-Our optimal kick XG Boost model has a RMSE of 0.3921, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we will continue with this as our kick WPA model.
+Our optimal kick XG Boost model has a RMSE of 0.03921, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we used this as our kick wpa model.
 
 ### Go Model
 
@@ -307,7 +308,7 @@ ridge.pred.go <- predict(ridge.mod.go, s = 4, newx = go_test_x)
 print(paste("Ridge RMSE:", RMSE(go_test_y, ridge.pred.go)))
 ```
 
-Our optimal go for it XG Boost model has a RMSE of 0.5492, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we will continue with this as our go for it WPA model.
+Our optimal go for it XG Boost model has a RMSE of 0.05492, which is the lowest RMSE we obtained throughout our XG Boost, Lasso, and Ridge Regression modelling process. Therefore, we used this as our go for it wpa model.
 
 ## Results
 
@@ -405,7 +406,7 @@ crucial_data$accuracy <- 100 * (1 - (crucial_data$ewpa_max_percentile - crucial_
   #geom_density()
 ```
 
-``` {r fig.height = 5, fig.width = 5, echo = FALSE}
+``` {r fig.height = 5, fig.width = 5, echo = FALSE, fig.align='center'}
 top_decisions <- crucial_data %>% 
   arrange(desc(execution)) %>% 
   select(ewpa_punt, ewpa_kick, ewpa_go, recommendation, play_type, wpa, execution, accuracy) %>%
@@ -428,6 +429,7 @@ d<-crucial_data %>%
 
 c/d
 ```
+
 To visualize our recommendations, we plotted the frequency of each play on each yard line beyond the 50 on crucial plays.
 What is immediately apparent is the number of go plays. Our models clearly favors go plays over the other types of plays, which makes sense since going for it has the most direct path to points. What's also noticeable is the extension of punt plays across the entire length of the field. The punts peak as we get closer to the 50, which is what we expect, but as seen from the plot of how the crucial plays were actually made (top) there were no punts from within the 30 yard line. Our model doesn't understand football conceptually and thus draws this big limitation. On a positive note, our model does a nice job of creating a bi-modal structure of go plays with field goals punting in the middle. This is exactly what we were hoping to see, since going for it becomes more valuable closer to the goal line and kicking a field goal becomes harder closer to the 50 yard line. The actual plays have a similar shape, with go plays peaking at the 1 yard line and around the 36 yard line, and field goals taking up a much larger portion of the area in between. 
 
@@ -441,6 +443,7 @@ table(conf_matrix) %>%
   kable()
 ```
 
+Our confusion matrix above, which shows the play type in the rows and our recommendation in the columns, also paints a similar picture as the graphs above. While going for it was called much less in comparison to punting or kicking, it was easily the most predicted play. We did a good job of predicting field goals and an ok job of punts, but we can see that our biggest issue was predicting to go for it too much.
 
 ```{r echo = FALSE,  fig.width=4, fig.height=3, fig.align='center'}
 ggplot(crucial_data, aes(x = accuracy, y = execution)) +
@@ -451,6 +454,8 @@ ggplot(crucial_data, aes(x = accuracy, y = execution)) +
        x = "Accuracy", y = "Execution"
        )
 ```
+
+Our final plot above shows our accuracy vs. execution metrics plotted against each other. The positive slope indicates that teams perform better as their play call becomes closer to our recommendation in wpa. While this is a good sign for our model as it means teams do better on average the more they agree with our model, there are other outside factors that could be playing into this.
 
 ## Top 5 Executed 4th Downs
 
@@ -464,9 +469,6 @@ top_decisions %>%
 #ggplot(data_main, aes(x = wpa)) +
   #geom_density()
 ```
-
-
-
 
 ```{r copy over, fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
 #crucial_data %>% 
