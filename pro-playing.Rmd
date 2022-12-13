@@ -169,7 +169,7 @@ We also wanted to take a look at the distribution of our response variable, `wpa
 
 # Modeling
 
-The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. To do this, we trained 3 separate xGBoost models, each on their own data of one play type. We first split the data for each model into train and test sets using 70-30 splits. We began by training a baseline xgboost model as well as a Lasso and Ridge regression model for each play type. After examining the RMSEs of the models, the xgboost baseline model performed much better than both the ridge and lasso optimal models. After we decided to use xgboost for our final model, we played around with the parameters of the model to try and achieve the best predictive model possible. We did this by attempting to minimize our test set RMSE across different xgboost parameters such as learning rate, number of iterations, subsample, and the max depth of each tree. 
+The goal with our models is to create the best possible models for predicting WPA (win probability added) given a certain game state. To do this, we wanted to create a WPA model for each decision (punt, kick, go for it) that is trained on previous game states and resulting WPAs. We first split the data for each model into train and test sets using 70-30 splits for each play type. We began by training a baseline XGBoost model for each decision as well as a Lasso and Ridge regression model for each play type. After examining the RMSEs of the three different types of models, the XGBoost baseline model performed much better than both the ridge and lasso optimal models for all three play types. Because of this, we decided to use XGBoost as our model choice for all three play types. We played around with the parameters of each model to try and achieve the best predictive model possible. We did this by attempting to minimize our test set RMSE across different XGBoost parameters such as learning rate, number of iterations, subsample, and the max depth of each tree. After multiple tests using our testing data, we finally settled on a final punt, kick, and go for it model. The next step was to use these three models to predict the WPAs of critical 4th down plays.
 
 ### Punt Model
 
@@ -406,7 +406,7 @@ crucial_data$accuracy <- 100 * (1 - (crucial_data$ewpa_max_percentile - crucial_
   #geom_density()
 ```
 
-``` {r fig.height = 5, fig.width = 5, echo = FALSE, fig.align='center'}
+``` {r fig.height = 5, fig.width = 5.5, echo = FALSE, fig.align='center'}
 top_decisions <- crucial_data %>% 
   arrange(desc(execution)) %>% 
   select(ewpa_punt, ewpa_kick, ewpa_go, recommendation, play_type, wpa, execution, accuracy) %>%
@@ -418,14 +418,14 @@ c<-crucial_data %>%
   filter(yardline_100<51) %>% 
   ggplot(aes(x=yardline_100, fill = play_type)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
   theme_bw()+
-  labs(title = "Real Life Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
+  labs(title = "Real Life Decisions", subtitle = "1999-2022, opponents' half, game within 14 points, win prob. > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
 
 d<-crucial_data %>% 
   filter(yardline_100<51) %>% 
   ggplot(aes(x=yardline_100, fill = recommendation)) + geom_histogram(binwidth = 1, alpha=.4, position="identity") +
   theme_bw()+
   scale_y_continuous(limits = c(0,1000))+
-  labs(title = "Model Recommended Decisions", subtitle = "1999-2022, opponents' side of field, game within 14 points, win probability > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
+  labs(title = "Model Recommended Decisions", subtitle = "1999-2022, opponents' half, game within 14 points, win prob. > 0.1", x="Yardline", y="Number of Plays", fill="Play Type")
 
 c/d
 ```
@@ -445,7 +445,7 @@ table(conf_matrix) %>%
 
 Our confusion matrix above, which shows the play type in the rows and our recommendation in the columns, also paints a similar picture as the graphs above. While going for it was called much less in comparison to punting or kicking, it was easily the most predicted play. We did a good job of predicting field goals and an ok job of punts, but we can see that our biggest issue was predicting to go for it too much.
 
-```{r echo = FALSE,  fig.width=4, fig.height=3, fig.align='center'}
+```{r echo = FALSE,  fig.width=5, fig.height=3, fig.align='center'}
 ggplot(crucial_data, aes(x = accuracy, y = execution)) +
   geom_point() +
   stat_poly_line() +
@@ -464,6 +464,8 @@ top_decisions %>%
   head(5) %>% 
   kable(digits = 3) 
 ```
+
+Above, we can see an example of the top 5 executed plays on crucial 4th downs in the last 22 seasons. Most of the plays with the largest WPA values are teams going for it probably near the end of the game, which yields the greatest WPA when converted. Our models made the right recommendation on four out of the five best executed plays, which is either a good indication or a sign that our models maybe learned too much from the plays with the highest WPA. However, the best executed plays are often times the result of extreme variance and represent the best possible outcome for a given play call making them very hard to accurately predict.
 
 ```{r fig.width=4, fig.height=3, fig.align='center', echo = FALSE}
 #ggplot(data_main, aes(x = wpa)) +
@@ -513,4 +515,8 @@ top_decisions %>%
 
 # Discussion and Conclusion
 
-While our models and process did not turn out exactly how we wanted it to, we still ended up with a working product and learned a lot while making it.
+Our models came with some significant limitations. For starters, each one was only trained on that specific type of play. The models don't compare to each other and have no way of seeing alternatives, it purely just tries to estimate win probability based on one type of play. This led to extrapolation in scenarios that would never exist in the NFL (like punting within the 30 yard line, kicking an 80 yard field goal, or going for it on 4th and 15 in the first quarter). Additionally, the models incurred some bias from the WPA of going for it. Of course, going for it on 4th down has the most direct route to points scored and that will increase any teams win probability no matter the scenario. There were many factors outside of game state (like positional strengths/injuries and weather) that we did not include in our model, but could have affects on WPA and decision making. Additionally, plays during the end of games have dramatic shifts in win probability that skew how our models think. 
+
+While our models and process did not turn out exactly how we wanted it to, we still ended up with a working product and learned a lot while making it. This type of modeling has a lot of potential for future application. XGBoost models can provide a predictive experience to football that with the right parameters and variables, could change the way NFL teams operate on 4th down. 
+
+
